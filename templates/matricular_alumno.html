@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Matriculación - Sistema de Gestión Académica</title>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&display=swap" rel="stylesheet">
+    <link href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css" rel="stylesheet">
+    <link href="/static/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="/static/css/styles.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
+    <style>
+        html {
+            margin-left: 15%;
+        }
+        .materia-disponible {
+            background-color: #d4edda;
+        }
+        .materia-bloqueada {
+            background-color: #f8d7da;
+        }
+        .materia-inscrita {
+            background-color: #d1ecf1;
+        }
+        .correlativas-ok {
+            color: #28a745;
+        }
+        .correlativas-falta {
+            color: #dc3545;
+        }
+        .info-alumno {
+            background-color: #f8f9fa;
+            padding: 20px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+        }
+    </style>
+</head>
+<body>
+    {% include 'navbar.html' %}
+    {% include 'nav.html' %}
+    
+    <div class="container mt-4">
+        <!-- Mensajes flash -->
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                <div class="mt-3">
+                    {% for category, message in messages %}
+                        <div class="alert alert-{{ 'success' if category == 'success' else 'danger' if category == 'error' else 'info' }} alert-dismissible fade show" role="alert">
+                            {{ message }}
+                            <button type="button" class="close" data-dismiss="alert" aria-label="Close">
+                                <span aria-hidden="true">&times;</span>
+                            </button>
+                        </div>
+                    {% endfor %}
+                </div>
+            {% endif %}
+        {% endwith %}
+
+        <!-- Información del alumno -->
+        <div class="info-alumno">
+            <h4 class="text-primary">Matriculación de Alumno</h4>
+            <div class="row">
+                <div class="col-md-6">
+                    <p><strong>Nombre:</strong> {{ alumno.nombre }} {{ alumno.apellido }}</p>
+                    <p><strong>DNI:</strong> {{ alumno.dni }}</p>
+                </div>
+                <div class="col-md-6">
+                    <p><strong>Carrera:</strong> {{ carrera.nombre }}</p>
+                    <p><strong>Email:</strong> {{ alumno.email }}</p>
+                </div>
+            </div>
+            <a href="{{ url_for('alumnos', table='matriculacion') }}" class="btn btn-secondary btn-sm">
+                <i class="fas fa-arrow-left"></i> Volver al listado
+            </a>
+        </div>
+
+        <!-- Materias inscritas -->
+        <div class="card mb-4">
+            <div class="card-header bg-info text-white">
+                <h5><i class="fas fa-book-open"></i> Materias Inscritas/Cursadas</h5>
+            </div>
+            <div class="card-body">
+                {% if materias_inscritas %}
+                    <table class="table table-striped table-sm">
+                        <thead>
+                            <tr>
+                                <th>Materia</th>
+                                <th>Año Inscripción</th>
+                                <th>Estado</th>
+                                <th>Nota</th>
+                                <th>Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for materia in materias_inscritas %}
+                            <tr class="materia-inscrita">
+                                <td>{{ materia.nombre_materia }}</td>
+                                <td>{{ materia.anio }}</td>
+                                <td>
+                                    <span class="badge badge-{{ 'success' if materia.estado == 'aprobado' else 'primary' if materia.estado == 'cursando' else 'secondary' }}">
+                                        {{ materia.estado|capitalize }}
+                                    </span>
+                                </td>
+                                <td>
+                                    {% if materia.nota %}
+                                        {{ materia.nota }}
+                                    {% else %}
+                                        -
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if materia.estado != 'aprobado' %}
+                                    <form method="POST" action="{{ url_for('cambiar_estado_materia', id_inscripcion=materia.id_inscripcion_materia) }}" style="display:inline;">
+                                        <button type="submit" class="btn btn-sm btn-warning" onclick="return confirm('¿Cambiar estado de esta materia?')">
+                                            <i class="fas fa-edit"></i>
+                                        </button>
+                                    </form>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                {% else %}
+                    <p class="text-muted">El alumno no está inscrito en ninguna materia aún.</p>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Materias disponibles para inscribir -->
+        <div class="card">
+            <div class="card-header bg-success text-white">
+                <h5><i class="fas fa-plus-circle"></i> Inscribir en Nuevas Materias</h5>
+            </div>
+            <div class="card-body">
+                {% if materias_disponibles %}
+                    <table class="table table-striped table-sm">
+                        <thead>
+                            <tr>
+                                <th>Materia</th>
+                                <th>Correlativas</th>
+                                <th>Estado Correlativas</th>
+                                <th>Acción</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for materia in materias_disponibles %}
+                            <tr class="{{ 'materia-disponible' if materia.puede_inscribirse else 'materia-bloqueada' }}">
+                                <td>{{ materia.nombre_materia }}</td>
+                                <td>
+                                    {% if materia.correlativas %}
+                                        <small>
+                                            {% for corr in materia.correlativas %}
+                                                {{ corr.nombre_correlativa }}{% if not loop.last %}, {% endif %}
+                                            {% endfor %}
+                                        </small>
+                                    {% else %}
+                                        <small class="text-muted">Sin correlativas</small>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if materia.puede_inscribirse %}
+                                        <span class="correlativas-ok"><i class="fas fa-check-circle"></i> Cumple</span>
+                                    {% else %}
+                                        <span class="correlativas-falta">
+                                            <i class="fas fa-times-circle"></i> Faltan: 
+                                            {% for corr in materia.correlativas_faltantes %}
+                                                {{ corr }}{% if not loop.last %}, {% endif %}
+                                            {% endfor %}
+                                        </span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if materia.puede_inscribirse %}
+                                        <form method="POST" action="{{ url_for('inscribir_materia', id_usuario=alumno.id_usuario, id_materia=materia.id_materia) }}" style="display:inline;">
+                                            <button type="submit" class="btn btn-sm btn-success" onclick="return confirm('¿Inscribir al alumno en {{ materia.nombre_materia }}?')">
+                                                <i class="fas fa-user-plus"></i> Inscribir
+                                            </button>
+                                        </form>
+                                    {% else %}
+                                        <button class="btn btn-sm btn-secondary" disabled>
+                                            <i class="fas fa-lock"></i> Bloqueada
+                                        </button>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                {% else %}
+                    <p class="text-muted">No hay materias disponibles para inscribir o el alumno ya está inscrito en todas.</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.0.6/dist/umd/popper.min.js"></script>
+    <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
+    <script src="/static/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

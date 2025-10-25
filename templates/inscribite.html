@@ -6,7 +6,7 @@
     <title>Pre-Inscripción</title>
     <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&display=swap" rel="stylesheet">
     <link href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css" rel="stylesheet">
-    <link href="bootstrap.min.css" rel="stylesheet">
+    <link href="/static/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="/static/css/styles.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
     <script>
@@ -97,26 +97,6 @@
                     const provinciaOption = provinciasData[i];
                     if (provinciaOption.getAttribute('data-pais') === id_pais) {
                         provinciaSelect.appendChild(provinciaOption.cloneNode(true));
-                    }
-                }
-            }
-
-            // Limpiar la selección de localidad cuando cambie la provincia
-            document.getElementById('id_localidad').innerHTML = '<option value="">Seleccione una localidad</option>';
-        }
-
-        function mostrarLocalidades() {
-            const id_provincia = document.getElementById('id_provincia').value;
-            const localidadSelect = document.getElementById('id_localidad');
-            const localidadesData = document.getElementById('localidades-data').children;
-
-            localidadSelect.innerHTML = '<option value="">Seleccione una localidad</option>';
-
-            if (id_provincia) {
-                for (let i = 0; i < localidadesData.length; i++) {
-                    const localidadOption = localidadesData[i];
-                    if (localidadOption.getAttribute('data-provincia') === id_provincia) {
-                        localidadSelect.appendChild(localidadOption.cloneNode(true));
                     }
                 }
             }
@@ -216,7 +196,7 @@
                             
                             <div class="col col col-md-3 form-group">
                                 <label for="id_provincia">Provincia:</label>
-                                <select class="form-control form-control-sm" id="id_provincia" name="id_provincia" required onchange="mostrarLocalidades()">
+                                <select class="form-control form-control-sm" id="id_provincia" name="id_provincia" required>
                                     <option value="">Seleccionar una provincia</option>
                                     <!-- Aquí las provincias se cargarán dinámicamente -->
                                 </select>
@@ -230,19 +210,10 @@
                             </div>
 
                             <div class="col col col-md-3 form-group">
-                                <label for="id_localidad">Localidad:</label>
-                                <select class="form-control form-control-sm" id="id_localidad" name="id_localidad" required>
-                                    <option value="">Seleccione una localidad</option>
-                                    {% for localidad in localidades %}
-                                        <option value="{{ localidad[0] }}" data-provincia="{{ localidad[2] }}" {% if session.get('datos_personales', {}).get('id_localidad') == localidad[0] %}selected{% endif %}>{{ localidad[1] }}</option>
-                                    {% endfor %}
-                                </select>
-                            </div>
-                                                <!-- Localidades ocultas en el DOM -->
-                            <div id="localidades-data" style="display: none;">
-                                {% for localidad in localidades %}
-                                    <option value="{{ localidad[0] }}" data-provincia="{{ localidad[2] }}">{{ localidad[1] }}</option>
-                                {% endfor %}
+                                <label for="localidad">Localidad/Ciudad:</label>
+                                <input class="form-control form-control-sm" type="text" id="localidad" name="localidad" 
+                                       value="{{ session.get('datos_personales', {}).get('localidad', '') }}" 
+                                       placeholder="Ingrese su ciudad" required>
                             </div>
 
                             <div class="col col col-md-3 form-group">
@@ -309,6 +280,6 @@
     <script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.0.6/dist/umd/popper.min.js"></script>
     <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
-    <script src="bootstrap.bundle.min.js"></script>
+    <script src="/static/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>

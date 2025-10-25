@@ -208,9 +208,8 @@ def alumnos():
     if table == 'alumnos':
         # Consulta de alumnos con filtro de nombre y estado
         query_alumnos = """
-            SELECT u.id_usuario, u.dni, u.nombre, l.nombre AS localidad, u.telefono
+            SELECT u.id_usuario, u.dni, u.nombre, u.localidad, u.telefono
             FROM usuarios u
-            LEFT JOIN localidades l ON u.id_localidad = l.id_localidad
             WHERE u.nombre LIKE %s
         """
         params = [nombre_filter]
@@ -239,40 +238,33 @@ def alumnos():
             'alumnos.html', 
             alumnos=alumnos,
             pre_inscripciones=[],
+            alumnos_matriculacion=[],
             page=page,
             table='alumnos',
             nombre_busqueda=nombre_busqueda,
             estado_activo=estado_activo,
             total_paginas_alumnos=total_paginas_alumnos,
-            total_paginas_pre_inscripciones=None
+            total_paginas_pre_inscripciones=None,
+            total_paginas_matriculacion=None
         )
 
-    elif table == 'pre_inscripciones':
-        # Consulta de pre-inscripciones con filtro de nombre y estado
+    elif table == 'inscripciones':
+        # Consulta de pre-inscripciones con filtro de nombre
         query_pre_inscripciones = """
-            SELECT u.id_usuario, u.dni, u.nombre, l.nombre AS localidad, u.telefono
+            SELECT u.id_usuario, u.dni, u.nombre, u.localidad, u.telefono
             FROM pre_inscripciones u
-            LEFT JOIN localidades l ON u.id_localidad = l.id_localidad
-            WHERE u.nombre LIKE %s
+            WHERE u.nombre LIKE %s AND u.activo = 1
         """
         params = [nombre_filter]
-
-        if activo_filter is not None:
-            query_pre_inscripciones += " AND u.activo = %s"
-            params.append(activo_filter)
 
         query_pre_inscripciones += " ORDER BY u.id_usuario LIMIT %s OFFSET %s"
         params.extend([per_page, offset])
 
         pre_inscripciones = ejecutar_sql(query_pre_inscripciones, tuple(params))
 
-        # Contar el total de pre-inscripciones según el filtro de búsqueda y estado
-        query_total_pre_inscripciones = "SELECT COUNT(*) FROM pre_inscripciones WHERE nombre LIKE %s"
+        # Contar el total de pre-inscripciones según el filtro de búsqueda
+        query_total_pre_inscripciones = "SELECT COUNT(*) FROM pre_inscripciones WHERE nombre LIKE %s AND activo = 1"
         total_params = [nombre_filter]
-
-        if activo_filter is not None:
-            query_total_pre_inscripciones += " AND activo = %s"
-            total_params.append(activo_filter)
 
         total_pre_inscripciones = ejecutar_sql(query_total_pre_inscripciones, tuple(total_params))[0][0]
         total_paginas_pre_inscripciones = (total_pre_inscripciones + per_page - 1) // per_page
@@ -281,13 +273,77 @@ def alumnos():
             'alumnos.html',
             alumnos=[],
             pre_inscripciones=pre_inscripciones,
+            alumnos_matriculacion=[],
             page=page,
-            table='pre_inscripciones',
+            table='inscripciones',
             nombre_busqueda=nombre_busqueda,
             estado_activo=estado_activo,
             total_paginas_alumnos=None,
-            total_paginas_pre_inscripciones=total_paginas_pre_inscripciones
+            total_paginas_pre_inscripciones=total_paginas_pre_inscripciones,
+            total_paginas_matriculacion=None
         )
+
+    elif table == 'matriculacion':
+        # Consulta de alumnos (usuarios con perfil de alumno) para matriculación
+        query_matriculacion = """
+            SELECT u.id_usuario, u.dni, u.nombre, u.localidad, u.telefono
+            FROM usuarios u
+            INNER JOIN perfiles_usuarios pu ON u.id_usuario = pu.id_usuarios
+            WHERE pu.id_perfil = 4 AND u.nombre LIKE %s
+        """
+        params = [nombre_filter]
+
+        if activo_filter is not None:
+            query_matriculacion += " AND u.activo = %s"
+            params.append(activo_filter)
+
+        query_matriculacion += " ORDER BY u.id_usuario LIMIT %s OFFSET %s"
+        params.extend([per_page, offset])
+
+        alumnos_matriculacion = ejecutar_sql(query_matriculacion, tuple(params))
+
+        # Contar el total de alumnos para matriculación
+        query_total_matriculacion = """
+            SELECT COUNT(*) FROM usuarios u
+            INNER JOIN perfiles_usuarios pu ON u.id_usuario = pu.id_usuarios
+            WHERE pu.id_perfil = 4 AND u.nombre LIKE %s
+        """
+        total_params = [nombre_filter]
+
+        if activo_filter is not None:
+            query_total_matriculacion += " AND u.activo = %s"
+            total_params.append(activo_filter)
+
+        total_matriculacion = ejecutar_sql(query_total_matriculacion, tuple(total_params))[0][0]
+        total_paginas_matriculacion = (total_matriculacion + per_page - 1) // per_page
+
+        return render_template(
+            'alumnos.html',
+            alumnos=[],
+            pre_inscripciones=[],
+            alumnos_matriculacion=alumnos_matriculacion,
+            page=page,
+            table='matriculacion',
+            nombre_busqueda=nombre_busqueda,
+            estado_activo=estado_activo,
+            total_paginas_alumnos=None,
+            total_paginas_pre_inscripciones=None,
+            total_paginas_matriculacion=total_paginas_matriculacion
+        )
+
+    else:  # table == 'alumnos' (por defecto)
+        # Consulta de alumnos con filtro de nombre y estado
+        query_alumnos = """
+            SELECT u.id_usuario, u.dni, u.nombre, u.localidad, u.telefono
+            FROM usuarios u
+            INNER JOIN perfiles_usuarios pu ON u.id_usuario = pu.id_usuarios
+            WHERE pu.id_perfil = 4 AND u.nombre LIKE %s
+        """
+        params = [nombre_filter]
+
+        if activo_filter is not None:
+            query_alumnos += " AND u.activo = %s"
+            params.append(activo_filter)
 
 
 # aqui entraremos cuando seleccionamos un usuario, primero hara un get para tomar todos sus datos y 
@@ -303,7 +359,7 @@ def editar_alumno(id_usuario):
         datos = request.form.to_dict()
 
         # Convertir los campos a enteros, si es necesario
-        datos['id_localidad'] = int(datos['id_localidad']) if datos['id_localidad'].isdigit() else None
+        localidad = datos.get('localidad') or None  # Ahora es string
         datos['id_pais'] = int(datos['id_pais']) if datos['id_pais'].isdigit() else None
         datos['id_provincia'] = int(datos['id_provincia']) if datos['id_provincia'].isdigit() else None
         datos['carrera'] = int(datos['carrera']) if datos['carrera'].isdigit() else None
@@ -325,7 +381,7 @@ def editar_alumno(id_usuario):
             UPDATE usuarios SET 
                 dni = %s, nombre = %s, apellido = %s, id_sexo = %s, fecha_nacimiento = %s, lugar_nacimiento = %s, 
                 id_estado_civil = %s, cantidad_hijos = %s, familiares_a_cargo = %s, domicilio = %s, 
-                piso = %s, id_localidad = %s, id_pais = %s, id_provincia = %s, codigo_postal = %s, 
+                piso = %s, localidad = %s, id_pais = %s, id_provincia = %s, codigo_postal = %s, 
                 telefono = %s, telefono_alt = %s, telefono_alt_propietario = %s, email = %s, 
                 titulo_base = %s, anio_egreso = %s, id_institucion = %s, otros_estudios = %s, 
                 anio_egreso_otros = %s, trabaja = %s, actividad = %s, horario_habitual = %s, 
@@ -335,7 +391,7 @@ def editar_alumno(id_usuario):
         ejecutar_sql(query_update, (
             datos['dni'], datos['nombre'], datos['apellido'], datos['id_sexo'], datos['fecha_nacimiento'], datos['lugar_nacimiento'],
             datos['id_estado_civil'], datos['cantidad_hijos'], datos['familiares_a_cargo'], datos['domicilio'],
-            datos['piso'], datos['id_localidad'], datos['id_pais'], datos['id_provincia'], datos['codigo_postal'],
+            datos['piso'], localidad, datos['id_pais'], datos['id_provincia'], datos['codigo_postal'],
             datos['telefono'], datos['telefono_alt'], datos['telefono_alt_propietario'], datos['email'],
             datos['titulo_base'], datos['anio_egreso'], datos['id_institucion'], datos['otros_estudios'],
             datos['anio_egreso_otros'], datos['trabaja'], datos['actividad'], datos['horario_habitual'],
@@ -383,10 +439,6 @@ def editar_alumno(id_usuario):
     query_provincias = "SELECT id_provincia, nombre, id_pais FROM provincias"
     provincias = ejecutar_sql(query_provincias)
 
-    # Obtener las localidades
-    query_localidades = "SELECT id_localidad, nombre, id_provincia FROM localidades"
-    localidades = ejecutar_sql(query_localidades)
-
     # Obtener las carreras y turnos
     query_carreras = "SELECT id_carrera, nombre FROM lista_carreras WHERE estado = 1"
     lista_carreras = ejecutar_sql(query_carreras)
@@ -405,7 +457,6 @@ def editar_alumno(id_usuario):
         alumno=ingresante,
         paises=paises,
         provincias=provincias,
-        localidades=localidades,
         lista_carreras=lista_carreras,
         turnos_carreras=turnos_carreras,
         alumno_carrera_id=alumno_carrera_id,
@@ -433,6 +484,349 @@ def borrar_alumno(id_usuario):
 
     return redirect(url_for('alumnos'))
 
+
+@app.route('/dar_alta_alumno/<int:id_usuario>', methods=['POST'])
+@perfil_requerido(['1', '2'])  # Solo perfiles 1 (directivo) y 2 (preceptor) pueden acceder
+def dar_alta_alumno(id_usuario):
+    """
+    Dar de alta un pre-inscripto convirtiéndolo en alumno:
+    1. Copiar datos de pre_inscripciones a usuarios
+    2. Asignar perfil de Alumno (id_perfil = 4) en perfiles_usuarios
+    3. Marcar pre-inscripción como inactiva
+    """
+    if 'nombre' not in session:
+        return redirect(url_for('login'))
+    
+    try:
+        # Obtener datos de la pre-inscripción
+        query_pre_inscripcion = """
+            SELECT dni, nombre, apellido, id_sexo, fecha_nacimiento, lugar_nacimiento,
+                   id_estado_civil, cantidad_hijos, familiares_a_cargo, domicilio, piso,
+                   id_pais, id_provincia, codigo_postal, telefono, telefono_alt,
+                   telefono_alt_propietario, email, titulo_base, anio_egreso,
+                   id_institucion, otros_estudios, anio_egreso_otros, trabaja,
+                   actividad, horario_habitual, obra_social, pass, localidad
+            FROM pre_inscripciones
+            WHERE id_usuario = %s AND activo = 1
+        """
+        pre_inscripcion = ejecutar_sql(query_pre_inscripcion, (id_usuario,))
+        
+        if not pre_inscripcion:
+            flash('Pre-inscripción no encontrada o ya fue procesada', 'error')
+            return redirect(url_for('alumnos', table='inscripciones'))
+        
+        datos = pre_inscripcion[0]
+        
+        # Usar transacción para operaciones atómicas
+        from utils.db_utils import transactional
+        
+        with transactional() as (connection, cursor):
+            # Insertar en tabla usuarios
+            query_insert_usuario = """
+                INSERT INTO usuarios (
+                    dni, nombre, apellido, id_sexo, fecha_nacimiento, lugar_nacimiento,
+                    id_estado_civil, cantidad_hijos, familiares_a_cargo, domicilio, piso,
+                    id_pais, id_provincia, codigo_postal, telefono, telefono_alt,
+                    telefono_alt_propietario, email, titulo_base, anio_egreso,
+                    id_institucion, otros_estudios, anio_egreso_otros, trabaja,
+                    actividad, horario_habitual, obra_social, pass, activo, localidad
+                ) VALUES (
+                    %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
+                    %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 1, %s
+                )
+            """
+            cursor.execute(query_insert_usuario, datos)
+            nuevo_id_usuario = cursor.lastrowid
+            
+            # Asignar perfil de Alumno (id_perfil = 4)
+            query_insert_perfil = """
+                INSERT INTO perfiles_usuarios (id_perfil, id_usuarios)
+                VALUES (4, %s)
+            """
+            cursor.execute(query_insert_perfil, (nuevo_id_usuario,))
+            
+            # Marcar pre-inscripción como inactiva
+            query_desactivar_preinscripcion = """
+                UPDATE pre_inscripciones
+                SET activo = 0
+                WHERE id_usuario = %s
+            """
+            cursor.execute(query_desactivar_preinscripcion, (id_usuario,))
+        
+        flash(f'Alumno dado de alta exitosamente con ID {nuevo_id_usuario}', 'success')
+        return redirect(url_for('alumnos', table='inscripciones'))
+        
+    except Exception as e:
+        flash(f'Error al dar de alta al alumno: {str(e)}', 'error')
+        return redirect(url_for('alumnos', table='inscripciones'))
+
+
+@app.route('/matricular_alumno/<int:id_usuario>', methods=['GET'])
+@perfil_requerido(['1', '2'])  # Solo perfiles 1 (directivo) y 2 (preceptor) pueden acceder
+def matricular_alumno(id_usuario):
+    """
+    Pantalla de matriculación de un alumno en materias.
+    Muestra materias inscritas y disponibles según correlativas.
+    """
+    if 'nombre' not in session:
+        return redirect(url_for('login'))
+    
+    try:
+        # Obtener datos del alumno
+        query_alumno = """
+            SELECT u.id_usuario, u.dni, u.nombre, u.apellido, u.email
+            FROM usuarios u
+            WHERE u.id_usuario = %s
+        """
+        resultado_alumno = ejecutar_sql(query_alumno, (id_usuario,))
+        
+        if not resultado_alumno:
+            flash('Alumno no encontrado', 'error')
+            return redirect(url_for('alumnos', table='matriculacion'))
+        
+        alumno = {
+            'id_usuario': resultado_alumno[0][0],
+            'dni': resultado_alumno[0][1],
+            'nombre': resultado_alumno[0][2],
+            'apellido': resultado_alumno[0][3],
+            'email': resultado_alumno[0][4]
+        }
+        
+        # Obtener la carrera del alumno (tomamos la primera activa)
+        query_carrera = """
+            SELECT ic.id_carrera, lc.nombre
+            FROM inscripciones_carreras ic
+            INNER JOIN lista_carreras lc ON ic.id_carrera = lc.id_carrera
+            WHERE ic.id_usuario = %s AND ic.activo = 1
+            LIMIT 1
+        """
+        resultado_carrera = ejecutar_sql(query_carrera, (id_usuario,))
+        
+        if not resultado_carrera:
+            flash('El alumno no tiene una carrera activa asignada', 'error')
+            return redirect(url_for('alumnos', table='matriculacion'))
+        
+        carrera = {
+            'id_carrera': resultado_carrera[0][0],
+            'nombre': resultado_carrera[0][1]
+        }
+        
+        # Obtener materias inscritas del alumno
+        query_materias_inscritas = """
+            SELECT 
+                im.id_inscripcion_materia,
+                m.nombre AS nombre_materia,
+                im.anio,
+                im.estado,
+                a.nota
+            FROM inscripciones_materias im
+            INNER JOIN materias m ON im.id_materia = m.id_materia
+            LEFT JOIN aprobaciones a ON a.id_usuario = im.id_usuario AND a.id_materia = im.id_materia
+            WHERE im.id_usuario = %s AND im.id_carrera = %s
+            ORDER BY im.anio DESC, m.nombre
+        """
+        resultado_inscritas = ejecutar_sql(query_materias_inscritas, (id_usuario, carrera['id_carrera']))
+        
+        materias_inscritas = []
+        ids_materias_inscritas = set()
+        
+        for row in resultado_inscritas:
+            materias_inscritas.append({
+                'id_inscripcion_materia': row[0],
+                'nombre_materia': row[1],
+                'anio': row[2],
+                'estado': row[3],
+                'nota': row[4]
+            })
+            # Obtener el id_materia para excluirla de disponibles
+            query_id_materia = "SELECT id_materia FROM inscripciones_materias WHERE id_inscripcion_materia = %s"
+            id_mat = ejecutar_sql(query_id_materia, (row[0],))
+            if id_mat:
+                ids_materias_inscritas.add(id_mat[0][0])
+        
+        # Obtener todas las materias de la carrera
+        query_todas_materias = """
+            SELECT id_materia, nombre
+            FROM materias
+            WHERE id_carrera = %s
+            ORDER BY nombre
+        """
+        resultado_todas = ejecutar_sql(query_todas_materias, (carrera['id_carrera'],))
+        
+        # Obtener materias aprobadas del alumno
+        query_aprobadas = """
+            SELECT id_materia
+            FROM aprobaciones
+            WHERE id_usuario = %s AND aprobada = 1
+        """
+        resultado_aprobadas = ejecutar_sql(query_aprobadas, (id_usuario,))
+        materias_aprobadas = {row[0] for row in resultado_aprobadas}
+        
+        # Construir lista de materias disponibles con validación de correlativas
+        materias_disponibles = []
+        
+        for materia_row in resultado_todas:
+            id_materia = materia_row[0]
+            nombre_materia = materia_row[1]
+            
+            # Saltar si ya está inscrito
+            if id_materia in ids_materias_inscritas:
+                continue
+            
+            # Obtener correlativas de esta materia
+            query_correlativas = """
+                SELECT c.id_materia_correlativa, m.nombre
+                FROM correlativas c
+                INNER JOIN materias m ON c.id_materia_correlativa = m.id_materia
+                WHERE c.id_materia = %s
+            """
+            resultado_correlativas = ejecutar_sql(query_correlativas, (id_materia,))
+            
+            correlativas = []
+            correlativas_faltantes = []
+            puede_inscribirse = True
+            
+            for corr_row in resultado_correlativas:
+                id_corr = corr_row[0]
+                nombre_corr = corr_row[1]
+                
+                correlativas.append({
+                    'id_correlativa': id_corr,
+                    'nombre_correlativa': nombre_corr
+                })
+                
+                # Verificar si tiene aprobada la correlativa
+                if id_corr not in materias_aprobadas:
+                    puede_inscribirse = False
+                    correlativas_faltantes.append(nombre_corr)
+            
+            materias_disponibles.append({
+                'id_materia': id_materia,
+                'nombre_materia': nombre_materia,
+                'correlativas': correlativas,
+                'correlativas_faltantes': correlativas_faltantes,
+                'puede_inscribirse': puede_inscribirse
+            })
+        
+        return render_template(
+            'matricular_alumno.html',
+            alumno=alumno,
+            carrera=carrera,
+            materias_inscritas=materias_inscritas,
+            materias_disponibles=materias_disponibles
+        )
+        
+    except Exception as e:
+        flash(f'Error al cargar la matriculación: {str(e)}', 'error')
+        return redirect(url_for('alumnos', table='matriculacion'))
+
+
+@app.route('/inscribir_materia/<int:id_usuario>/<int:id_materia>', methods=['POST'])
+@perfil_requerido(['1', '2'])
+def inscribir_materia(id_usuario, id_materia):
+    """
+    Inscribe a un alumno en una materia específica.
+    """
+    if 'nombre' not in session:
+        return redirect(url_for('login'))
+    
+    try:
+        # Obtener la carrera del alumno
+        query_carrera = """
+            SELECT id_carrera
+            FROM inscripciones_carreras
+            WHERE id_usuario = %s AND activo = 1
+            LIMIT 1
+        """
+        resultado_carrera = ejecutar_sql(query_carrera, (id_usuario,))
+        
+        if not resultado_carrera:
+            flash('El alumno no tiene una carrera activa', 'error')
+            return redirect(url_for('matricular_alumno', id_usuario=id_usuario))
+        
+        id_carrera = resultado_carrera[0][0]
+        
+        # Verificar que la materia pertenece a esa carrera
+        query_verificar_materia = """
+            SELECT id_materia
+            FROM materias
+            WHERE id_materia = %s AND id_carrera = %s
+        """
+        if not ejecutar_sql(query_verificar_materia, (id_materia, id_carrera)):
+            flash('La materia no pertenece a la carrera del alumno', 'error')
+            return redirect(url_for('matricular_alumno', id_usuario=id_usuario))
+        
+        # Verificar correlativas antes de inscribir
+        query_correlativas = """
+            SELECT id_materia_correlativa
+            FROM correlativas
+            WHERE id_materia = %s
+        """
+        correlativas = ejecutar_sql(query_correlativas, (id_materia,))
+        
+        query_aprobadas = """
+            SELECT id_materia
+            FROM aprobaciones
+            WHERE id_usuario = %s AND aprobada = 1
+        """
+        materias_aprobadas = {row[0] for row in ejecutar_sql(query_aprobadas, (id_usuario,))}
+        
+        for corr in correlativas:
+            if corr[0] not in materias_aprobadas:
+                flash('El alumno no cumple con las correlativas requeridas', 'error')
+                return redirect(url_for('matricular_alumno', id_usuario=id_usuario))
+        
+        # Verificar que no esté ya inscrito
+        query_verificar_inscripcion = """
+            SELECT id_inscripcion_materia
+            FROM inscripciones_materias
+            WHERE id_usuario = %s AND id_materia = %s AND id_carrera = %s
+        """
+        if ejecutar_sql(query_verificar_inscripcion, (id_usuario, id_materia, id_carrera)):
+            flash('El alumno ya está inscrito en esta materia', 'warning')
+            return redirect(url_for('matricular_alumno', id_usuario=id_usuario))
+        
+        # Inscribir en la materia
+        from datetime import datetime
+        anio_actual = datetime.now().year
+        
+        query_inscribir = """
+            INSERT INTO inscripciones_materias (id_usuario, id_materia, id_carrera, anio, estado)
+            VALUES (%s, %s, %s, %s, 'inscripto')
+        """
+        ejecutar_sql(query_inscribir, (id_usuario, id_materia, id_carrera, anio_actual))
+        
+        flash('Alumno inscrito exitosamente en la materia', 'success')
+        return redirect(url_for('matricular_alumno', id_usuario=id_usuario))
+        
+    except Exception as e:
+        flash(f'Error al inscribir en la materia: {str(e)}', 'error')
+        return redirect(url_for('matricular_alumno', id_usuario=id_usuario))
+
+
+@app.route('/cambiar_estado_materia/<int:id_inscripcion>', methods=['POST'])
+@perfil_requerido(['1', '2'])
+def cambiar_estado_materia(id_inscripcion):
+    """
+    Cambia el estado de una inscripción de materia.
+    Por ahora solo un placeholder - se puede expandir con un formulario modal.
+    """
+    if 'nombre' not in session:
+        return redirect(url_for('login'))
+    
+    flash('Funcionalidad de cambio de estado en desarrollo', 'info')
+    
+    # Obtener el id_usuario de la inscripción para redirigir
+    query = "SELECT id_usuario FROM inscripciones_materias WHERE id_inscripcion_materia = %s"
+    resultado = ejecutar_sql(query, (id_inscripcion,))
+    
+    if resultado:
+        id_usuario = resultado[0][0]
+        return redirect(url_for('matricular_alumno', id_usuario=id_usuario))
+    
+    return redirect(url_for('alumnos', table='matriculacion'))
+
+
 #esta funcion toma todos los formularios llenados con datos de posibles estudiantes y si son correctos darlos de alta
 #lo mismo que hace con alumnos pero cuando hacemos un POST, sera para darlos de alta y poder llevarlos con un insert usuarios
 @app.route('/ingresante/<int:id_usuario>', methods=['GET', 'POST'])
@@ -446,7 +840,7 @@ def editar_ingresante(id_usuario):
         datos = request.form.to_dict()
 
         # Normalizar campos que pueden ser nulos
-        datos['id_localidad'] = int(datos['id_localidad']) if datos['id_localidad'].isdigit() else None
+        localidad = datos.get('localidad') or None  # Ahora es string
         datos['id_pais'] = int(datos['id_pais']) if datos['id_pais'].isdigit() else None
         datos['id_provincia'] = int(datos['id_provincia']) if datos['id_provincia'].isdigit() else None
         datos['carrera'] = int(datos['carrera']) if datos['carrera'].isdigit() else None
@@ -465,7 +859,7 @@ def editar_ingresante(id_usuario):
         query_insert_usuario = """
             INSERT INTO usuarios (
                 dni, nombre, apellido, id_sexo, fecha_nacimiento, lugar_nacimiento, id_estado_civil,
-                cantidad_hijos, familiares_a_cargo, domicilio, piso, id_localidad, id_pais, id_provincia,
+                cantidad_hijos, familiares_a_cargo, domicilio, piso, localidad, id_pais, id_provincia,
                 codigo_postal, telefono, telefono_alt, telefono_alt_propietario, email, titulo_base,
                 anio_egreso, id_institucion, otros_estudios, anio_egreso_otros, trabaja, actividad,
                 horario_habitual, obra_social, pass, activo
@@ -474,7 +868,7 @@ def editar_ingresante(id_usuario):
         values_usuario = (
             datos['dni'], datos['nombre'], datos['apellido'], datos['id_sexo'], datos['fecha_nacimiento'],
             datos['lugar_nacimiento'], datos['id_estado_civil'], datos['cantidad_hijos'], datos['familiares_a_cargo'],
-            datos['domicilio'], datos['piso'], datos['id_localidad'], datos['id_pais'], datos['id_provincia'],
+            datos['domicilio'], datos['piso'], localidad, datos['id_pais'], datos['id_provincia'],
             datos['codigo_postal'], datos['telefono'], datos['telefono_alt'], datos['telefono_alt_propietario'],
             datos['email'], datos['titulo_base'], datos['anio_egreso'], datos['id_institucion'], datos['otros_estudios'],
             datos['anio_egreso_otros'], datos['trabaja'], datos['actividad'], datos['horario_habitual'], datos['obra_social'],
@@ -551,16 +945,14 @@ def editar_ingresante(id_usuario):
     alumno_carrera_id = resultado[0][0] if resultado else None
     alumno_turno = resultado[0][1] if resultado else None
 
-    # Obtener los países, provincias, localidades, carreras y turnos
+    # Obtener los países, provincias, carreras y turnos
     query_paises = "SELECT id_pais, nombre FROM paises"
     query_provincias = "SELECT id_provincia, nombre, id_pais FROM provincias"
-    query_localidades = "SELECT id_localidad, nombre, id_provincia FROM localidades"
     query_carreras = "SELECT id_carrera, nombre FROM lista_carreras WHERE estado = 1"
     query_turnos = "SELECT id_turno, id_carrera, descripcion FROM turno_carrera WHERE estado = 1"
 
     paises = ejecutar_sql(query_paises)
     provincias = ejecutar_sql(query_provincias)
-    localidades = ejecutar_sql(query_localidades)
     lista_carreras = ejecutar_sql(query_carreras)
     turnos_carreras = [{"id_turno": turno[0], "id_carrera": turno[1], "descripcion": turno[2]} for turno in ejecutar_sql(query_turnos)]
 
@@ -569,7 +961,6 @@ def editar_ingresante(id_usuario):
         alumno=ingresante,
         paises=paises,
         provincias=provincias,
-        localidades=localidades,
         lista_carreras=lista_carreras,
         turnos_carreras=turnos_carreras,
         alumno_carrera_id=alumno_carrera_id,
@@ -659,15 +1050,12 @@ def pre_inscripcion():
     if 'nombre' not in session:
         return redirect(url_for('login'))
 
-    # Obtener países, provincias, localidades, carreras y turnos
+    # Obtener países, provincias, carreras y turnos
     query_paises = "SELECT id_pais, nombre FROM paises"
     paises = ejecutar_sql(query_paises)
 
     query_provincias = "SELECT id_provincia, nombre, id_pais FROM provincias"
     provincias = ejecutar_sql(query_provincias)
-
-    query_localidades = "SELECT id_localidad, nombre, id_provincia FROM localidades"
-    localidades = ejecutar_sql(query_localidades)
 
     # Incluir el ID de la institución en cada carrera
     query_carreras = """
@@ -711,7 +1099,6 @@ def pre_inscripcion():
                 lista_carreras=carreras_dict,
                 paises=paises,
                 provincias=provincias,
-                localidades=localidades,
                 error_dni=True,
                 sexos=sexos,
                 institutos=institutos,
@@ -730,7 +1117,6 @@ def pre_inscripcion():
         lista_carreras=carreras_dict,
         paises=paises,
         provincias=provincias,
-        localidades=localidades,
         error_dni=False,
         sexos=sexos,
         institutos=institutos,
@@ -796,16 +1182,16 @@ def guardar_pre_inscripcion():
     id_turno = datos.get('id_turno_original')
     id_pais = datos.get('id_pais_original')
     id_provincia = datos.get('id_provincia_original')
-    id_localidad = datos.get('id_localidad_original')
+    localidad = datos.get('localidad')  # Ahora es un string
     id_institucion = datos.get('id_instituto_original')
     id_sexo = datos.get('id_sexo_original')
     id_estado_civil = datos.get('id_estado_civil_original')
 
-    # Insertar el usuario en la tabla pre_inscripciones sin id_carrera ni id_turno
+    # Insertar el usuario en la tabla pre_inscripciones sin id_localidad
     query_usuario = """
         INSERT INTO pre_inscripciones (
             dni, nombre, apellido, id_sexo, fecha_nacimiento, lugar_nacimiento, id_estado_civil,
-            cantidad_hijos, familiares_a_cargo, domicilio, piso, id_localidad, id_pais,
+            cantidad_hijos, familiares_a_cargo, domicilio, piso, localidad, id_pais,
             id_provincia, codigo_postal, telefono, telefono_alt, telefono_alt_propietario, email,
             titulo_base, anio_egreso, id_institucion, otros_estudios, anio_egreso_otros,
             trabaja, actividad, horario_habitual, obra_social
@@ -815,7 +1201,7 @@ def guardar_pre_inscripcion():
         datos['dni'], datos['nombre'], datos['apellido'], id_sexo,
         datos['fecha_nacimiento'], datos['lugar_nacimiento'], id_estado_civil,
         datos['cantidad_hijos'], datos['familiares_a_cargo'], datos['domicilio'],
-        datos['piso'], id_localidad, id_pais,
+        datos['piso'], localidad, id_pais,
         id_provincia, datos['codigo_postal'], datos['telefono'],
         datos['telefono_alt'], datos['telefono_alt_propietario'], datos['email'],
         datos['titulo_base'], datos['anio_egreso'], id_institucion,
@@ -864,7 +1250,6 @@ def pre_inscripcion_3():
     # Consultas SQL para obtener los nombres en lugar de IDs
     query_pais = "SELECT nombre FROM paises WHERE id_pais = %s"
     query_provincia = "SELECT nombre FROM provincias WHERE id_provincia = %s"
-    query_localidad = "SELECT nombre FROM localidades WHERE id_localidad = %s"
     query_carrera = "SELECT nombre FROM lista_carreras WHERE id_carrera = %s"
     query_turno = "SELECT descripcion FROM turno_carrera WHERE id_turno = %s"
     query_instituto = "SELECT nombre_instituto FROM institutos WHERE id_instituto = %s"
@@ -874,7 +1259,7 @@ def pre_inscripcion_3():
     # Mantener los IDs originales
     id_pais_original = datos_completos.get('id_pais')
     id_provincia_original = datos_completos.get('id_provincia')
-    id_localidad_original = datos_completos.get('id_localidad')
+    localidad_original = datos_completos.get('localidad')  # Ahora es string
     id_carrera_original = datos_completos.get('carrera')
     id_turno_original = datos_completos.get('turno')
     id_instituto_original = datos_completos.get('id_institucion')
@@ -884,7 +1269,7 @@ def pre_inscripcion_3():
     # Obtener los nombres basados en los IDs
     pais_nombre = ejecutar_sql(query_pais, (id_pais_original,))[0][0] if id_pais_original else None
     provincia_nombre = ejecutar_sql(query_provincia, (id_provincia_original,))[0][0] if id_provincia_original else None
-    localidad_nombre = ejecutar_sql(query_localidad, (id_localidad_original,))[0][0] if id_localidad_original else None
+    # localidad ya es string, no necesita conversión
     carrera_nombre = ejecutar_sql(query_carrera, (id_carrera_original,))[0][0] if id_carrera_original else None
     turno_descripcion = ejecutar_sql(query_turno, (id_turno_original,))[0][0] if id_turno_original else None
     instituto_nombre = ejecutar_sql(query_instituto, (id_instituto_original,))[0][0] if id_instituto_original else None
@@ -894,7 +1279,7 @@ def pre_inscripcion_3():
     # Guardar los valores originales junto con los nombres
     datos_completos['id_pais_original'] = id_pais_original
     datos_completos['id_provincia_original'] = id_provincia_original
-    datos_completos['id_localidad_original'] = id_localidad_original
+    datos_completos['localidad'] = localidad_original  # Mantener el string
     datos_completos['id_carrera_original'] = id_carrera_original
     datos_completos['id_turno_original'] = id_turno_original
     datos_completos['id_instituto_original'] = id_instituto_original
@@ -904,7 +1289,7 @@ def pre_inscripcion_3():
     # Reemplazar los IDs por sus nombres para mostrar en la vista
     datos_completos['id_pais'] = pais_nombre
     datos_completos['id_provincia'] = provincia_nombre
-    datos_completos['id_localidad'] = localidad_nombre
+    # localidad ya es string, no necesita conversión
     datos_completos['carrera'] = carrera_nombre
     datos_completos['turno'] = turno_descripcion
     datos_completos['id_institucion'] = instituto_nombre
@@ -917,15 +1302,12 @@ def pre_inscripcion_3():
 @app.route('/inscribite', methods=['GET', 'POST'])
 def inscribite():
 
-    # Obtener países, provincias, localidades, carreras y turnos
+    # Obtener países, provincias, carreras y turnos
     query_paises = "SELECT id_pais, nombre FROM paises"
     paises = ejecutar_sql(query_paises)
 
     query_provincias = "SELECT id_provincia, nombre, id_pais FROM provincias"
     provincias = ejecutar_sql(query_provincias)
-
-    query_localidades = "SELECT id_localidad, nombre, id_provincia FROM localidades"
-    localidades = ejecutar_sql(query_localidades)
 
     # Incluir el ID de la institución en cada carrera
     query_carreras = """
@@ -969,7 +1351,6 @@ def inscribite():
                 lista_carreras=carreras_dict,
                 paises=paises,
                 provincias=provincias,
-                localidades=localidades,
                 error_dni=True,
                 sexos=sexos,
                 institutos=institutos,
@@ -988,7 +1369,6 @@ def inscribite():
         lista_carreras=carreras_dict,
         paises=paises,
         provincias=provincias,
-        localidades=localidades,
         error_dni=False,
         sexos=sexos,
         institutos=institutos,
@@ -1040,7 +1420,6 @@ def inscribite_3():
     # Consultas SQL para obtener los nombres en lugar de IDs
     query_pais = "SELECT nombre FROM paises WHERE id_pais = %s"
     query_provincia = "SELECT nombre FROM provincias WHERE id_provincia = %s"
-    query_localidad = "SELECT nombre FROM localidades WHERE id_localidad = %s"
     query_carrera = "SELECT nombre FROM lista_carreras WHERE id_carrera = %s"
     query_turno = "SELECT descripcion FROM turno_carrera WHERE id_turno = %s"
     query_instituto = "SELECT nombre_instituto FROM institutos WHERE id_instituto = %s"
@@ -1050,7 +1429,7 @@ def inscribite_3():
     # Mantener los IDs originales
     id_pais_original = datos_completos.get('id_pais')
     id_provincia_original = datos_completos.get('id_provincia')
-    id_localidad_original = datos_completos.get('id_localidad')
+    localidad_original = datos_completos.get('localidad')  # Ahora es string
     id_carrera_original = datos_completos.get('carrera')
     id_turno_original = datos_completos.get('turno')
     id_instituto_original = datos_completos.get('id_institucion')
@@ -1060,7 +1439,7 @@ def inscribite_3():
     # Obtener los nombres basados en los IDs
     pais_nombre = ejecutar_sql(query_pais, (id_pais_original,))[0][0] if id_pais_original else None
     provincia_nombre = ejecutar_sql(query_provincia, (id_provincia_original,))[0][0] if id_provincia_original else None
-    localidad_nombre = ejecutar_sql(query_localidad, (id_localidad_original,))[0][0] if id_localidad_original else None
+    # localidad ya es string, no necesita conversión
     carrera_nombre = ejecutar_sql(query_carrera, (id_carrera_original,))[0][0] if id_carrera_original else None
     turno_descripcion = ejecutar_sql(query_turno, (id_turno_original,))[0][0] if id_turno_original else None
     instituto_nombre = ejecutar_sql(query_instituto, (id_instituto_original,))[0][0] if id_instituto_original else None
@@ -1070,7 +1449,7 @@ def inscribite_3():
     # Guardar los valores originales junto con los nombres
     datos_completos['id_pais_original'] = id_pais_original
     datos_completos['id_provincia_original'] = id_provincia_original
-    datos_completos['id_localidad_original'] = id_localidad_original
+    datos_completos['localidad'] = localidad_original  # Mantener el string
     datos_completos['id_carrera_original'] = id_carrera_original
     datos_completos['id_turno_original'] = id_turno_original
     datos_completos['id_instituto_original'] = id_instituto_original
@@ -1080,7 +1459,7 @@ def inscribite_3():
     # Reemplazar los IDs por sus nombres para mostrar en la vista
     datos_completos['id_pais'] = pais_nombre
     datos_completos['id_provincia'] = provincia_nombre
-    datos_completos['id_localidad'] = localidad_nombre
+    # localidad ya es string, no necesita conversión
     datos_completos['carrera'] = carrera_nombre
     datos_completos['turno'] = turno_descripcion
     datos_completos['id_institucion'] = instituto_nombre
