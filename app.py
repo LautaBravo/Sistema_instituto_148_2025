@@ -485,6 +485,43 @@ def borrar_alumno(id_usuario):
     return redirect(url_for('alumnos'))
 
 
+@app.route('/alumno/<int:id_usuario>/eliminar', methods=['POST'])
+@perfil_requerido(['1', '2'])  # Solo perfiles 1 (directivo) y 2 (preceptor) pueden acceder
+def eliminar_alumno(id_usuario):
+    """
+    Eliminar permanentemente un alumno de la base de datos.
+    Esta acción elimina el usuario completamente (no solo lo desactiva).
+    CUIDADO: Esta acción es irreversible.
+    """
+    if 'nombre' not in session:
+        return redirect(url_for('login'))
+    
+    try:
+        # Primero verificar que el usuario existe y es un alumno
+        query_verificar = """
+            SELECT u.id_usuario, u.nombre, u.apellido
+            FROM usuarios u
+            INNER JOIN perfiles_usuarios pu ON u.id_usuario = pu.id_usuarios
+            WHERE u.id_usuario = %s AND pu.id_perfil = 4
+        """
+        alumno = ejecutar_sql(query_verificar, (id_usuario,))
+        
+        if not alumno:
+            flash('No se encontró el alumno o no tiene perfil de alumno', 'error')
+            return redirect(url_for('alumnos', table='alumnos'))
+        
+        # Eliminar el usuario (las FK con ON DELETE CASCADE eliminarán registros relacionados)
+        query_eliminar = "DELETE FROM usuarios WHERE id_usuario = %s"
+        ejecutar_sql(query_eliminar, (id_usuario,))
+        
+        flash('Alumno eliminado exitosamente de la base de datos', 'success')
+        return redirect(url_for('alumnos', table='alumnos'))
+        
+    except Exception as e:
+        flash(f'Error al eliminar el alumno: {str(e)}', 'error')
+        return redirect(url_for('alumnos', table='alumnos'))
+
+
 @app.route('/dar_alta_alumno/<int:id_usuario>', methods=['POST'])
 @perfil_requerido(['1', '2'])  # Solo perfiles 1 (directivo) y 2 (preceptor) pueden acceder
 def dar_alta_alumno(id_usuario):
@@ -498,14 +535,14 @@ def dar_alta_alumno(id_usuario):
         return redirect(url_for('login'))
     
     try:
-        # Obtener datos de la pre-inscripción
+        # Obtener datos de la pre-inscripción incluyendo id_carrera
         query_pre_inscripcion = """
             SELECT dni, nombre, apellido, id_sexo, fecha_nacimiento, lugar_nacimiento,
                    id_estado_civil, cantidad_hijos, familiares_a_cargo, domicilio, piso,
                    id_pais, id_provincia, codigo_postal, telefono, telefono_alt,
                    telefono_alt_propietario, email, titulo_base, anio_egreso,
                    id_institucion, otros_estudios, anio_egreso_otros, trabaja,
-                   actividad, horario_habitual, obra_social, pass, localidad
+                   actividad, horario_habitual, obra_social, pass, localidad, id_carrera
             FROM pre_inscripciones
             WHERE id_usuario = %s AND activo = 1
         """
@@ -516,6 +553,8 @@ def dar_alta_alumno(id_usuario):
             return redirect(url_for('alumnos', table='inscripciones'))
         
         datos = pre_inscripcion[0]
+        id_carrera_preinscrito = datos[-1]  # El último campo es id_carrera
+        datos_sin_carrera = datos[:-1]  # Todos los datos excepto id_carrera
         
         # Usar transacción para operaciones atómicas
         from utils.db_utils import transactional
@@ -535,7 +574,7 @@ def dar_alta_alumno(id_usuario):
                     %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 1, %s
                 )
             """
-            cursor.execute(query_insert_usuario, datos)
+            cursor.execute(query_insert_usuario, datos_sin_carrera)
             nuevo_id_usuario = cursor.lastrowid
             
             # Asignar perfil de Alumno (id_perfil = 4)
@@ -545,6 +584,15 @@ def dar_alta_alumno(id_usuario):
             """
             cursor.execute(query_insert_perfil, (nuevo_id_usuario,))
             
+            # Copiar inscripción a carrera desde inscripciones_carreras de la pre-inscripción
+            query_copiar_inscripcion_carrera = """
+                INSERT INTO inscripciones_carreras (id_usuario, id_carrera, fecha_inscripcion, turno, estado_alumno, activo, id_turno)
+                SELECT %s, id_carrera, fecha_inscripcion, turno, 'inscripto', activo, id_turno
+                FROM inscripciones_carreras
+                WHERE id_usuario = %s
+            """
+            cursor.execute(query_copiar_inscripcion_carrera, (nuevo_id_usuario, id_usuario))
+            
             # Marcar pre-inscripción como inactiva
             query_desactivar_preinscripcion = """
                 UPDATE pre_inscripciones
@@ -553,7 +601,7 @@ def dar_alta_alumno(id_usuario):
             """
             cursor.execute(query_desactivar_preinscripcion, (id_usuario,))
         
-        flash(f'Alumno dado de alta exitosamente con ID {nuevo_id_usuario}', 'success')
+        flash('Alumno dado de alta exitosamente', 'success')
         return redirect(url_for('alumnos', table='inscripciones'))
         
     except Exception as e:
@@ -825,6 +873,52 @@ def cambiar_estado_materia(id_inscripcion):
         return redirect(url_for('matricular_alumno', id_usuario=id_usuario))
     
     return redirect(url_for('alumnos', table='matriculacion'))
+
+
+@app.route('/dar_baja_materia/<int:id_inscripcion>', methods=['POST'])
+@perfil_requerido(['1', '2'])
+def dar_baja_materia(id_inscripcion):
+    """
+    Da de baja una inscripción de materia eliminándola de la tabla inscripciones_materias.
+    Solo permite dar de baja materias que NO estén en estado 'aprobado'.
+    """
+    if 'nombre' not in session:
+        return redirect(url_for('login'))
+    
+    try:
+        # Primero obtener el id_usuario y estado antes de eliminar
+        query_obtener = """
+            SELECT id_usuario, estado 
+            FROM inscripciones_materias 
+            WHERE id_inscripcion_materia = %s
+        """
+        resultado = ejecutar_sql(query_obtener, (id_inscripcion,))
+        
+        if not resultado:
+            flash('No se encontró la inscripción', 'error')
+            return redirect(url_for('alumnos', table='matriculacion'))
+        
+        id_usuario = resultado[0][0]
+        estado = resultado[0][1]
+        
+        # Verificar que no esté aprobada
+        if estado == 'aprobado':
+            flash('No se puede dar de baja una materia aprobada', 'error')
+            return redirect(url_for('matricular_alumno', id_usuario=id_usuario))
+        
+        # Eliminar la inscripción
+        query_eliminar = """
+            DELETE FROM inscripciones_materias 
+            WHERE id_inscripcion_materia = %s
+        """
+        ejecutar_sql(query_eliminar, (id_inscripcion,))
+        
+        flash('Inscripción dada de baja exitosamente', 'success')
+        return redirect(url_for('matricular_alumno', id_usuario=id_usuario))
+        
+    except Exception as e:
+        flash(f'Error al dar de baja la inscripción: {str(e)}', 'error')
+        return redirect(url_for('alumnos', table='matriculacion'))
 
 
 #esta funcion toma todos los formularios llenados con datos de posibles estudiantes y si son correctos darlos de alta
@@ -1149,11 +1243,15 @@ def pre_inscripcion_2():
     query_provincias = "SELECT id_provincia, id_pais, nombre FROM provincias"
     provincias = ejecutar_sql(query_provincias)
 
+    # Obtener año actual para validación
+    from datetime import datetime
+    anio_actual = datetime.now().year
 
     return render_template(
         'pre_inscripcion_2.html',
         id_pais_estudio=id_pais_estudio,
         provincias=provincias,
+        anio_actual=anio_actual
     )
 
 
@@ -1187,15 +1285,15 @@ def guardar_pre_inscripcion():
     id_sexo = datos.get('id_sexo_original')
     id_estado_civil = datos.get('id_estado_civil_original')
 
-    # Insertar el usuario en la tabla pre_inscripciones sin id_localidad
+    # Insertar el usuario en la tabla pre_inscripciones con id_carrera
     query_usuario = """
         INSERT INTO pre_inscripciones (
             dni, nombre, apellido, id_sexo, fecha_nacimiento, lugar_nacimiento, id_estado_civil,
             cantidad_hijos, familiares_a_cargo, domicilio, piso, localidad, id_pais,
             id_provincia, codigo_postal, telefono, telefono_alt, telefono_alt_propietario, email,
-            titulo_base, anio_egreso, id_institucion, otros_estudios, anio_egreso_otros,
+            titulo_base, anio_egreso, id_institucion, id_carrera, otros_estudios, anio_egreso_otros,
             trabaja, actividad, horario_habitual, obra_social
-        ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+        ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
     """
     ejecutar_sql(query_usuario, (
         datos['dni'], datos['nombre'], datos['apellido'], id_sexo,
@@ -1204,7 +1302,7 @@ def guardar_pre_inscripcion():
         datos['piso'], localidad, id_pais,
         id_provincia, datos['codigo_postal'], datos['telefono'],
         datos['telefono_alt'], datos['telefono_alt_propietario'], datos['email'],
-        datos['titulo_base'], datos['anio_egreso'], id_institucion,
+        datos['titulo_base'], datos['anio_egreso'], id_institucion, id_carrera,
         datos['otros_estudios'], datos['anio_egreso_otros'], trabaja,
         actividad, horario_habitual, obra_social
     ))
@@ -1220,6 +1318,14 @@ def guardar_pre_inscripcion():
         ) VALUES (%s, %s, NOW(), %s, 'pre_inscripto', 1)
     """
     ejecutar_sql(query_inscripcion, (id_carrera, id_usuario, id_turno))
+    
+    # Limpiar la sesión
+    session.pop('datos_personales', None)
+    session.pop('datos_completos', None)
+    
+    # Mensaje de éxito
+    flash(f'Pre-inscripción guardada exitosamente. DNI: {datos["dni"]}', 'success')
+    
     # Redirigir al home una vez completada la inscripción
     return redirect(url_for('home'))
 

@@ -11,6 +11,38 @@
     <link href="/static/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="/static/css/styles.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
+    <script src="https://code.jquery.com/jquery-3.5.1.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@4.5.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        function mostrarConfirmacion(dni) {
+            const modal = `
+                <div class="modal fade" id="modalConfirmacion" tabindex="-1" role="dialog" aria-labelledby="modalLabel" aria-hidden="true">
+                    <div class="modal-dialog modal-dialog-centered" role="document">
+                        <div class="modal-content">
+                            <div class="modal-header bg-success text-white">
+                                <h5 class="modal-title" id="modalLabel">
+                                    <i class="fas fa-check-circle"></i> Pre-inscripción Exitosa
+                                </h5>
+                            </div>
+                            <div class="modal-body text-center">
+                                <p class="mb-3">La pre-inscripción se guardó exitosamente.</p>
+                                <p><strong>DNI:</strong> ${dni}</p>
+                            </div>
+                            <div class="modal-footer">
+                                <button type="button" class="btn btn-success" onclick="irAHome()">Aceptar</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+            $('body').append(modal);
+            $('#modalConfirmacion').modal('show');
+        }
+
+        function irAHome() {
+            window.location.href = '/home';
+        }
+    </script>
 </head>
 
 <style>
@@ -83,7 +115,7 @@
                     </div>
                 </div>
 
-                <form method="POST" action="/guardar_pre_inscripcion">
+                <form method="POST" action="/guardar_pre_inscripcion" id="formGuardar">
                     <!-- Pasar los datos como inputs ocultos para ser enviados al servidor -->
                     <input type="hidden" name="nombre_apellido" value="{{ nombre }}">
                     <input type="hidden" name="nombre_apellido" value="{{ apellido }}">
@@ -125,6 +157,24 @@
                         <button type="submit" class="float-right mb-3">Guardar</button>
                     </div>
                 </form>
+                <script>
+                    $('#formGuardar').on('submit', function(e) {
+                        e.preventDefault();
+                        const dni = '{{ dni }}';
+                        
+                        $.ajax({
+                            url: '/guardar_pre_inscripcion',
+                            method: 'POST',
+                            data: $(this).serialize(),
+                            success: function(response) {
+                                mostrarConfirmacion(dni);
+                            },
+                            error: function() {
+                                alert('Error al guardar la pre-inscripción');
+                            }
+                        });
+                    });
+                </script>
                 <div class="action" id="boton-atras">
                     <form method="GET" action="{{ url_for('pre_inscripcion') }}">
                         <button type="submit" class="float-left mb-3">Atrás</button>

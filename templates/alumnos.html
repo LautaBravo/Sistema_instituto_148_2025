@@ -68,25 +68,33 @@
             <table class="table table-striped">
                 <thead>
                     <tr>
-                        <th scope="col">ID</th>
                         <th scope="col">DNI</th>
                         <th scope="col">Nombre</th>
                         <th scope="col">Ciudad</th>
                         <th scope="col">Teléfono</th>
                         <th scope="col">Editar</th>
+                        <th scope="col">Eliminar</th>
                         <th scope="col">Materias</th>
                     </tr>
                 </thead>
                 <tbody>
                     {% for alumno in alumnos %}
                     <tr>
-                        {% for campo in alumno %}
-                        <td>{{ campo or '' }}</td>
+                        {% for campo in alumno[1:] %}  {# Saltar el primer campo (ID) #}
+                            <td>{{ campo or '' }}</td>
                         {% endfor %}
                         <td>
                             <a href="{{ url_for('editar_alumno', id_usuario=alumno[0]) }}">
                                 <i class="fas fa-edit fa-lg" id="EditIcon"></i>
                             </a>
+                        </td>
+                        <td>
+                            <form method="POST" action="{{ url_for('eliminar_alumno', id_usuario=alumno[0]) }}" style="display: inline;">
+                                <button type="submit" class="btn btn-sm btn-danger" 
+                                        onclick="return confirm('⚠️ ADVERTENCIA: Esta acción ELIMINARÁ PERMANENTEMENTE al alumno y todos sus datos (inscripciones, materias, aprobaciones). NO SE PUEDE DESHACER. ¿Desea continuar?')">
+                                    <i class="fas fa-trash-alt"></i>
+                                </button>
+                            </form>
                         </td>
                         <td>
                             <a href="{{ url_for('matricular_alumno', id_usuario=alumno[0]) }}" class="btn btn-sm btn-info">
@@ -126,7 +134,6 @@
             <table class="table table-striped">
                 <thead>
                     <tr>
-                        <th scope="col">ID</th>
                         <th scope="col">DNI</th>
                         <th scope="col">Nombre</th>
                         <th scope="col">Ciudad</th>
@@ -138,8 +145,8 @@
                 <tbody>
                     {% for pre_inscripcion in pre_inscripciones %}
                     <tr>
-                        {% for campo in pre_inscripcion %}
-                        <td>{{ campo or '' }}</td>
+                        {% for campo in pre_inscripcion[1:] %}  {# Saltar el primer campo (ID) #}
+                            <td>{{ campo or '' }}</td>
                         {% endfor %}
                         <td>
                             <a href="{{ url_for('editar_ingresante', id_usuario=pre_inscripcion[0]) }}">
@@ -186,7 +193,6 @@
             <table class="table table-striped">
                 <thead>
                     <tr>
-                        <th scope="col">ID</th>
                         <th scope="col">DNI</th>
                         <th scope="col">Nombre</th>
                         <th scope="col">Ciudad</th>
@@ -197,8 +203,8 @@
                 <tbody>
                     {% for alumno in alumnos_matriculacion %}
                     <tr>
-                        {% for campo in alumno %}
-                        <td>{{ campo or '' }}</td>
+                        {% for campo in alumno[1:] %}  {# Saltar el primer campo (ID) #}
+                            <td>{{ campo or '' }}</td>
                         {% endfor %}
                         <td>
                             <a href="{{ url_for('matricular_alumno', id_usuario=alumno[0]) }}" class="btn btn-sm btn-primary">

@@ -10,6 +10,10 @@
     <link rel="stylesheet" href="/static/css/styles.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
     <script>
+        // Variables desde el backend
+        const id_pais_estudio = {{ id_pais_estudio }};
+        const anio_actual = {{ anio_actual }};
+
         function toggleLaborFields() {
             const trabajaSi = document.getElementById('trabaja_si');
             const trabajaNo = document.getElementById('trabaja_no');
@@ -23,36 +27,39 @@
             }
         }
 
-        window.onload = function() {
-            toggleLaborFields();
-        };
-                // Función para habilitar la selección de provincia si el país es Argentina
-                function toggleProvinciaOtros() {
-            const provinciaSelectOtros = document.getElementById('provincia_estudio_otros');
-            const mensajeProvincia = document.getElementById('mensaje-provincia');
-
-            {% if id_pais_estudio == 1 %} // 1 representa Argentina
-                provinciaSelectOtros.disabled = false;
-                mensajeProvincia.style.display = 'block';
-            {% else %}
-                provinciaSelectOtros.disabled = true;
-                mensajeProvincia.style.display = 'none';
-            {% endif %}
-        }
-
         // Ejecutar funciones en la carga de la página
         window.onload = function() {
             toggleLaborFields();
-            toggleProvinciaOtros();
         };
 
         function validar_numeros(input) {
-            const regex = /^[0-9]$/;
+            // Solo permite números, elimina cualquier otro caracter
+            input.value = input.value.replace(/[^0-9]/g, '');
+        }
 
-            if (!regex.test(input.value)) {
-                input.value = input.value.replace(/[^0-9]/g, '');
+        function validarAnioEgreso(input) {
+            const valor = parseInt(input.value);
+            const errorElement = document.getElementById('error-anio-egreso');
+            
+            if (valor < 1900 || valor > anio_actual) {
+                errorElement.style.display = 'block';
+                input.setCustomValidity('Año inválido');
             } else {
-                errorElement.textContent = '';
+                errorElement.style.display = 'none';
+                input.setCustomValidity('');
+            }
+        }
+
+        function validarAnioEgresoOtros(input) {
+            const valor = parseInt(input.value);
+            const errorElement = document.getElementById('error-anio-egreso-otros');
+            
+            if (input.value && (valor < 1900 || valor > anio_actual)) {
+                errorElement.style.display = 'block';
+                input.setCustomValidity('Año inválido');
+            } else {
+                errorElement.style.display = 'none';
+                input.setCustomValidity('');
             }
         }
     </script>
@@ -84,20 +91,24 @@
                             <label for="titulo_base">Título Secundario:</label>
                             <input class="form-control form-control-sm" type="text" id="titulo_base" name="titulo_base" required>
                         </div>
-                        <div class="col col-md-4 form-group">
+                        <div class="col col-md-3 form-group">
                             <label for="anio_egreso">Año de Egreso:</label>
-                            <input class="form-control form-control-sm" type="number" id="anio_egreso" name="anio_egreso" oninput="validar_numeros(this)" required>
+                            <input class="form-control form-control-sm" type="number" id="anio_egreso" name="anio_egreso" 
+                                   min="1900" max="{{ anio_actual }}" 
+                                   oninput="validarAnioEgreso(this)" required>
+                            <small class="form-text text-danger" id="error-anio-egreso" style="display:none;">
+                                Ingrese un número correcto
+                            </small>
                         </div>
-                        <!-- Selección de provincia en función de Argentina -->
+                        <!-- Selección de provincia -->
                         <div class="col col-md-4 form-group">
-                            <label for="provincia_estudio_otros">Provincia (Solo si los otros estudios fueron en Argentina):</label>
+                            <label for="provincia_estudio_otros">Provincia:</label>
                             <select class="form-control form-control-sm" id="provincia_estudio_otros" name="provincia_estudio_otros">
                                 <option value="">Seleccione una provincia</option>
                                 {% for provincia in provincias %}
                                     <option value="{{ provincia[0] }}">{{ provincia[2] }}</option>
                                 {% endfor %}
                             </select>
-                            <span id="mensaje-provincia" style="display: none; color: #a55722;">*Seleccione una provincia solo si estudió en Argentina.</span>
                         </div>
                         <div class="col col-md-4 form-group">
                             <label for="otros_estudios">Otros Estudios:</label>
@@ -105,7 +116,12 @@
                         </div>
                         <div class="col col-md-4 form-group">
                             <label for="anio_egreso_otros">Año de Egreso (Otros Estudios):</label>
-                            <input class="form-control form-control-sm" type="number" id="anio_egreso_otros" name="anio_egreso_otros" oninput="validar_numeros(this)">
+                            <input class="form-control form-control-sm" type="number" id="anio_egreso_otros" name="anio_egreso_otros" 
+                                   min="1900" max="{{ anio_actual }}" 
+                                   oninput="validarAnioEgresoOtros(this)">
+                            <small class="form-text text-danger" id="error-anio-egreso-otros" style="display:none;">
+                                Ingrese un número correcto
+                            </small>
                         </div>
                     </div>
                 <!-- Sección de Datos Laborales -->
@@ -148,32 +164,6 @@
         </div>
         </div>
     </div>
-    <script>
-        // Si el alumno ya seleccionó Argentina en los otros estudios
-        function toggleProvinciaOtros() {
-        const provinciaSelectOtros = document.getElementById('provincia_estudio_otros');
-        const mensajeProvincia = document.getElementById('mensaje-provincia');
-
-        const paisEstudiosAnteriores = { id_pais_estudio }; // ID del país previamente seleccionado, este valor viene de la base de datos.
-
-        if (paisEstudiosAnteriores === 1) { // Si '1' es el ID de Argentina
-            provinciaSelectOtros.disabled = false;
-            mensajeProvincia.style.display = 'block';
-        } else {
-            provinciaSelectOtros.disabled = true;
-            provinciaSelectOtros.value = ''; // Limpiar la selección si no es Argentina
-            mensajeProvincia.style.display = 'none';
-        }
-        }
-
-    // Ejecutar al cargar la página
-    window.onload = function() {
-        toggleProvinciaOtros();
-    };
-    </script>
-    <script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.0.6/dist/umd/popper.min.js"></script>
-    <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
-    <script src="/static/js/bootstrap.bundle.min.js"></script>
+    <!-- Scripts cargados en el head -->
 </body>
 </html>

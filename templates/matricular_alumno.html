@@ -89,7 +89,7 @@
                                 <th>Año Inscripción</th>
                                 <th>Estado</th>
                                 <th>Nota</th>
-                                <th>Acciones</th>
+                                <th>Dar de Baja</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -111,11 +111,13 @@
                                 </td>
                                 <td>
                                     {% if materia.estado != 'aprobado' %}
-                                    <form method="POST" action="{{ url_for('cambiar_estado_materia', id_inscripcion=materia.id_inscripcion_materia) }}" style="display:inline;">
-                                        <button type="submit" class="btn btn-sm btn-warning" onclick="return confirm('¿Cambiar estado de esta materia?')">
-                                            <i class="fas fa-edit"></i>
+                                    <form method="POST" action="{{ url_for('dar_baja_materia', id_inscripcion=materia.id_inscripcion_materia) }}" style="display:inline;">
+                                        <button type="submit" class="btn btn-sm btn-danger" onclick="return confirm('¿Está seguro de dar de baja esta materia? Esta acción no se puede deshacer.')">
+                                            <i class="fas fa-trash-alt"></i> Dar de Baja
                                         </button>
                                     </form>
+                                    {% else %}
+                                    <span class="text-muted"><small>Materia aprobada</small></span>
                                     {% endif %}
                                 </td>
                             </tr>
