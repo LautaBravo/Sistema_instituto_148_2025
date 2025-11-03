@@ -46,12 +46,16 @@
 </head>
 
 <style>
-    html, body{
-        height: 100%;
+    body {
+        min-height: 100vh;
         display: flex;
-        justify-content: center; /* Centra horizontalmente */
-        align-content: center; /* Centra verticalmente */
-    }         
+        align-items: center;
+        justify-content: center;
+        padding: 20px 0;
+    }
+    .container {
+        max-width: 1200px;
+    }
 </style>
 
 <body>
@@ -82,20 +86,39 @@
                     <p class="col col col-md-4"><strong class="text-gris">Teléfono Alternativo:</strong> {{ telefono_alt }}</p>
                     <p class="col col col-md-4"><strong class="text-gris">A quién pertenece ese teléfono:</strong> {{ telefono_alt_propietario }}</p>
                     <p class="col col col-md-4"><strong class="text-gris">Email:</strong> {{ email }}</p>
+                    {% if email_alternativo %}
+                    <p class="col col col-md-4"><strong class="text-gris">Email Alternativo:</strong> {{ email_alternativo }}</p>
+                    {% endif %}
+                    {% if email_alternativo_2 %}
+                    <p class="col col col-md-4"><strong class="text-gris">Email Alternativo 2:</strong> {{ email_alternativo_2 }}</p>
+                    {% endif %}
                     <p class="col col col-md-4"><strong class="text-gris">Carrera:</strong> {{ carrera }}</p>
                     <p class="col col col-md-4"><strong class="text-gris">Turno:</strong> {{ turno }}</p>
+                    {% if observaciones %}
+                    <p class="col col-md-12"><strong class="text-gris">Observaciones:</strong> {{ observaciones }}</p>
+                    {% endif %}
                 </div>
 
             <div class="form-container">
                 <hr>
                 <h4 class="text-primary">Estudios Cursados</h4>
                 <div class="form-row">
-                    <p class="col col col-md-4"><strong class="text-gris">Título Base:</strong> {{ titulo_base }}</p>
+                    <p class="col col col-md-4"><strong class="text-gris">Título Secundario:</strong> {{ titulo_base }}</p>
                     <p class="col col col-md-4"><strong class="text-gris">Año de Egreso:</strong> {{ anio_egreso }}</p>
                     <p class="col col col-md-4"><strong class="text-gris">Provincia:</strong> {{ id_provincia }}</p>
                     <p class="col col col-md-4"><strong class="text-gris">Institución:</strong> {{ id_institucion }}</p>
-                    <p class="col col col-md-4"><strong class="text-gris">Otros Estudios:</strong> {{ otros_estudios }}</p>
-                    <p class="col col col-md-4"><strong class="text-gris">Año de Egreso de Otros Estudios:</strong> {{ anio_egreso_otros }}</p>
+                    {% if otros_estudios %}
+                    <p class="col col col-md-6"><strong class="text-gris">Otros Estudios:</strong> {{ otros_estudios }}</p>
+                    <p class="col col col-md-3"><strong class="text-gris">Año de Egreso:</strong> {{ anio_egreso_otros }}</p>
+                    {% endif %}
+                    {% if otros_estudios_2 %}
+                    <p class="col col col-md-6"><strong class="text-gris">Otros Estudios 2:</strong> {{ otros_estudios_2 }}</p>
+                    <p class="col col col-md-3"><strong class="text-gris">Año de Egreso 2:</strong> {{ anio_egreso_otros_2 }}</p>
+                    {% endif %}
+                    {% if otros_estudios_3 %}
+                    <p class="col col col-md-6"><strong class="text-gris">Otros Estudios 3:</strong> {{ otros_estudios_3 }}</p>
+                    <p class="col col col-md-3"><strong class="text-gris">Año de Egreso 3:</strong> {{ anio_egreso_otros_3 }}</p>
+                    {% endif %}
                 </div>
             </div>
 
@@ -162,10 +185,22 @@
                             method: 'POST',
                             data: $(this).serialize(),
                             success: function(response) {
-                                mostrarConfirmacion(dni);
+                                if (response.success) {
+                                    mostrarConfirmacion(response.dni || dni);
+                                } else {
+                                    alert('Error al guardar: ' + (response.error || 'Error desconocido'));
+                                }
                             },
-                            error: function() {
-                                alert('Error al guardar la pre-inscripción');
+                            error: function(xhr, status, error) {
+                                console.error('Error details:', xhr.responseText);
+                                let errorMsg = 'Error al guardar la pre-inscripción';
+                                try {
+                                    const response = JSON.parse(xhr.responseText);
+                                    errorMsg += ': ' + (response.error || error);
+                                } catch(e) {
+                                    errorMsg += ': ' + error;
+                                }
+                                alert(errorMsg);
                             }
                         });
                     });

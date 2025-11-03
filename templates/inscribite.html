@@ -13,6 +13,7 @@
     // Parsear la variable turnos_carreras a JSON
     const turnosCarreras = {{ turnos_carreras | tojson }};
     const carreras = {{ lista_carreras | tojson }};
+    const ID_ARGENTINA = 1; // ID de Argentina en la tabla paises
     
     function updateCarreras() {
         const institucionSelect = document.getElementById('id_institucion');
@@ -83,6 +84,74 @@
                 errorElement.textContent = '';
             }
         }
+        
+        function validar_numeros(input) {
+            // Solo permite números, elimina cualquier otro caracter
+            input.value = input.value.replace(/[^0-9]/g, '');
+        }
+
+        function validarNombres(input) {
+            // Solo permite letras, espacios, tildes, ñ y guiones
+            input.value = input.value.replace(/[^a-záéíóúñA-ZÁÉÍÓÚÑ\s\-]/g, '');
+        }
+
+        function validarFechaNacimiento(input) {
+            const fecha = new Date(input.value);
+            const hoy = new Date();
+            const anioActual = hoy.getFullYear();
+            const anioNacimiento = fecha.getFullYear();
+            const edad = anioActual - anioNacimiento;
+            const errorElement = document.getElementById('error-fecha-nacimiento');
+
+            // Validar que la fecha no sea futura y que la persona tenga al menos 5 años y máximo 120 años
+            if (fecha > hoy) {
+                errorElement.textContent = 'La fecha de nacimiento no puede ser futura.';
+                input.setCustomValidity('Fecha inválida');
+            } else if (edad < 5) {
+                errorElement.textContent = 'La persona debe tener al menos 5 años.';
+                input.setCustomValidity('Edad mínima no cumplida');
+            } else if (edad > 120) {
+                errorElement.textContent = 'Por favor ingrese una fecha de nacimiento válida.';
+                input.setCustomValidity('Fecha inválida');
+            } else {
+                errorElement.textContent = '';
+                input.setCustomValidity('');
+            }
+        }
+
+        // Validar email en tiempo real
+        function validarEmail(input) {
+            const regex = /^[a-zA-Z0-9._-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+            const errorElement = document.getElementById('error-email');
+
+            if (input.value && !regex.test(input.value)) {
+                errorElement.textContent = 'Por favor, ingrese un email válido (ej: usuario@ejemplo.com)';
+                errorElement.style.color = 'red';
+                errorElement.style.fontSize = '11px';
+                input.setCustomValidity('Email inválido');
+            } else {
+                errorElement.textContent = '';
+                input.setCustomValidity('');
+            }
+        }
+
+        // Validar emails alternativos también
+        function validarEmailAlternativo(input, errorElementId) {
+            if (!input.value) return; // Si está vacío, no validar (son opcionales)
+            
+            const regex = /^[a-zA-Z0-9._-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+            const errorElement = document.getElementById(errorElementId);
+
+            if (!regex.test(input.value)) {
+                errorElement.textContent = 'Email inválido';
+                errorElement.style.color = 'red';
+                errorElement.style.fontSize = '11px';
+                input.setCustomValidity('Email inválido');
+            } else {
+                errorElement.textContent = '';
+                input.setCustomValidity('');
+            }
+        }
 
         // Filtra las provincias en función del país seleccionado
         function filterProvincias() {
@@ -92,9 +161,18 @@
 
             provinciaSelect.innerHTML = '<option value="">Seleccionar una provincia</option>';
 
-            if (id_pais) {
+            // Si no es Argentina, deshabilitar y hacer opcional
+            if (id_pais != ID_ARGENTINA) {
+                provinciaSelect.disabled = true;
+                provinciaSelect.removeAttribute('required');
+                provinciaSelect.value = '';
+            } else {
+                provinciaSelect.disabled = false;
+                provinciaSelect.setAttribute('required', 'required');
+                
+                // Cargar provincias de Argentina
                 for (let i = 0; i < provinciasData.length; i++) {
-                    const provinciaOption = provinciasData[i];
+                    const provinciaOption = provinciasData[i];  
                     if (provinciaOption.getAttribute('data-pais') === id_pais) {
                         provinciaSelect.appendChild(provinciaOption.cloneNode(true));
                     }
@@ -103,32 +181,32 @@
         }
     </script>
     <style>
-    body{
-            height: 100vh;
+        body {
+            min-height: 100vh;
             display: flex;
-            justify-content: center; /* Centra horizontalmente */
-            align-items: center; /* Centra verticalmente */
-            margin: 0;
-            }
-                        
+            align-items: center;
+            justify-content: center;
+            padding: 20px 0;
+        }
+        .container {
+            max-width: 1200px;
+        }
     </style>
 </head>
 <body>
     <div class="container">
-        <div class="container rounded-sm" id="cont-insc">
-
-            
+        <div class="container rounded-sm" id="cont-insc">            
                 <div class="form-container">
                     <h4 class="text-primary text-center mt-3">Datos Personales</h4>
                     <form method="POST" action="/inscribite">
                         <div class="form-row">
                             <div class="col col-md-3 form-group">
                                 <label for="nombre">Nombres:</label>
-                                <input class="form-control form-control-sm" type="text" id="nombre" name="nombre" value="{{ session.get('datos_personales', {}).get('nombre', '') }}" required>
+                                <input class="form-control form-control-sm" type="text" id="nombre" name="nombre" value="{{ session.get('datos_personales', {}).get('nombre', '') }}" oninput="validarNombres(this)" required>
                             </div>
                             <div class="col col-md-3 form-group">
                                 <label for="apellido">Apellido:</label>
-                                <input class="form-control form-control-sm" type="text" id="apellido" name="apellido" value="{{ session.get('datos_personales', {}).get('apellido', '') }}" required>
+                                <input class="form-control form-control-sm" type="text" id="apellido" name="apellido" value="{{ session.get('datos_personales', {}).get('apellido', '') }}" oninput="validarNombres(this)" required>
                             </div>
                             <div class="col col col-md-3 form-group">
                       
@@ -153,11 +231,12 @@
                             </div>
                             <div class="col col col-md-3 form-group">
                                 <label for="fecha_nacimiento">Fecha de Nacimiento:</label>
-                                <input class="form-control form-control-sm" type="date" id="fecha_nacimiento" name="fecha_nacimiento" value="{{ session.get('datos_personales', {}).get('fecha_nacimiento', '') }}" required>
+                                <input class="form-control form-control-sm" type="date" id="fecha_nacimiento" name="fecha_nacimiento" value="{{ session.get('datos_personales', {}).get('fecha_nacimiento', '') }}" oninput="validarFechaNacimiento(this)" required>
+                                <small id="error-fecha-nacimiento" style="color: red; font-size: 11px;"></small>
                             </div>
                             <div class="col col col-md-3 form-group">
                                 <label for="lugar_nacimiento">Lugar de Nacimiento:</label>
-                                <input class="form-control form-control-sm" type="text" id="lugar_nacimiento" name="lugar_nacimiento" value="{{ session.get('datos_personales', {}).get('lugar_nacimiento', '') }}" required>
+                                <input class="form-control form-control-sm" type="text" id="lugar_nacimiento" name="lugar_nacimiento" value="{{ session.get('datos_personales', {}).get('lugar_nacimiento', '') }}" oninput="validarNombres(this)" required>
                             </div>
                             <div class="col col col-md-3 form-group">
                                 <label for="id_estado_civil">Estado Civil:</label>
@@ -170,11 +249,11 @@
                             </div>
                             <div class="col col col-md-3 form-group">
                                 <label for="cantidad_hijos">Cantidad de Hijos:</label>
-                                <input class="form-control form-control-sm" type="number" id="cantidad_hijos" name="cantidad_hijos" min="0" value="{{ session.get('datos_personales', {}).get('cantidad_hijos', '') }}" required>
+                                <input class="form-control form-control-sm" type="number" id="cantidad_hijos" name="cantidad_hijos" min="0" value="{{ session.get('datos_personales', {}).get('cantidad_hijos', '') }}" oninput="validar_numeros(this)" required>
                             </div>
                             <div class="col col col-md-3 form-group">
                                 <label for="familiares_a_cargo">Familiares a Cargo:</label>
-                                <input class="form-control form-control-sm" type="number" id="familiares_a_cargo" name="familiares_a_cargo" min="0" value="{{ session.get('datos_personales', {}).get('familiares_a_cargo', '') }}" required>
+                                <input class="form-control form-control-sm" type="number" id="familiares_a_cargo" name="familiares_a_cargo" min="0" value="{{ session.get('datos_personales', {}).get('familiares_a_cargo', '') }}" oninput="validar_numeros(this)" required>
                             </div>
                             <div class="col col col-md-3 form-group">
                                 <label for="domicilio">Domicilio:</label>
@@ -223,11 +302,11 @@
 
                             <div class="col col col-md-3 form-group">
                                 <label for="telefono">Teléfono:</label>
-                                <input class="form-control form-control-sm" type="number" id="telefono" name="telefono" value="{{ session.get('datos_personales', {}).get('telefono', '') }}" required>
+                                <input class="form-control form-control-sm" type="text" id="telefono" name="telefono" value="{{ session.get('datos_personales', {}).get('telefono', '') }}" oninput="validar_numeros(this)" required>
                             </div>
                             <div class="col col col-md-3 form-group">
                                 <label for="telefono_alt">Teléfono Alternativo:</label>
-                                <input class="form-control form-control-sm" type="number" id="telefono_alt" name="telefono_alt" value="{{ session.get('datos_personales', {}).get('telefono_alt', '') }}" required>
+                                <input class="form-control form-control-sm" type="text" id="telefono_alt" name="telefono_alt" value="{{ session.get('datos_personales', {}).get('telefono_alt', '') }}" oninput="validar_numeros(this)" required>
                             </div>
                             <div class="col col col-md-3 form-group">
                                 <label for="telefono_alt_propietario">A quién pertenece el teléfono alternativo:</label>
@@ -235,7 +314,22 @@
                             </div>
                             <div class="col col col-md-3 form-group">
                                 <label for="email">Email:</label>
-                                <input class="form-control form-control-sm" type="email" id="email" name="email" value="{{ session.get('datos_personales', {}).get('email', '') }}" required>
+                                <input class="form-control form-control-sm" type="email" id="email" name="email" value="{{ session.get('datos_personales', {}).get('email', '') }}" oninput="validarEmail(this)" required>
+                                <small id="error-email" style="color: red; font-size: 11px;"></small>
+                            </div>
+                            <div class="col col col-md-3 form-group">
+                                <label for="email_alternativo">Email Alternativo:</label>
+                                <input class="form-control form-control-sm" type="email" id="email_alternativo" name="email_alternativo" 
+                                       value="{{ session.get('datos_personales', {}).get('email_alternativo', '') }}"
+                                       oninput="validarEmailAlternativo(this, 'error-email-alt')">
+                                <small id="error-email-alt" style="color: red;"></small>
+                            </div>
+                            <div class="col col col-md-3 form-group">
+                                <label for="email_alternativo_2">Email Alternativo 2:</label>
+                                <input class="form-control form-control-sm" type="email" id="email_alternativo_2" name="email_alternativo_2" 
+                                       value="{{ session.get('datos_personales', {}).get('email_alternativo_2', '') }}"
+                                       oninput="validarEmailAlternativo(this, 'error-email-alt-2')">
+                                <small id="error-email-alt-2" style="color: red;"></small>
                             </div>
                             <div class="col col-md-4 form-group">
                                 <label for="id_institucion">Institución:</label>
@@ -261,6 +355,11 @@
                                     <option value="">Seleccione un turno</option>
                                     <!-- Aquí se cargarán dinámicamente los turnos -->
                                 </select>                    
+                            </div>
+                            <div class="col col-md-12 form-group">
+                                <label for="observaciones">Observaciones (opcional):</label>
+                                <textarea class="form-control" id="observaciones" name="observaciones" rows="3" 
+                                          placeholder="Ingrese cualquier observación adicional">{{ session.get('datos_personales', {}).get('observaciones', '') }}</textarea>
                             </div>
                         
                         </div>

@@ -1247,87 +1247,191 @@ def pre_inscripcion_2():
     from datetime import datetime
     anio_actual = datetime.now().year
 
+    # Obtener lista de carreras para mostrar el nombre
+    query_carreras = "SELECT id_carrera, nombre FROM lista_carreras"
+    lista_carreras = ejecutar_sql(query_carreras)
+
     return render_template(
         'pre_inscripcion_2.html',
         id_pais_estudio=id_pais_estudio,
         provincias=provincias,
-        anio_actual=anio_actual
+        anio_actual=anio_actual,
+        lista_carreras=lista_carreras
     )
 
 
 #una vez que esta completo el formulario, guardamos al ingresante en pre_inscripciones para mas adelante darlo de alta como alumno
 @app.route('/guardar_pre_inscripcion', methods=['POST'])
 def guardar_pre_inscripcion():
-    # Obtener todos los datos desde la sesión
-    datos = session.get('datos_completos', {})
+    try:
+        # Obtener todos los datos desde la sesión
+        datos = session.get('datos_completos', {})
+        
+        if not datos:
+            return jsonify({'success': False, 'error': 'No hay datos en la sesión'}), 400
 
-    # Ajustar campos que pueden no estar presentes
-    datos['lugar_nacimiento'] = datos.get('lugar_nacimiento') or None
-    datos['telefono_alt'] = datos.get('telefono_alt') or None
-    datos['telefono_alt_propietario'] = datos.get('telefono_alt_propietario') or None
-    datos['titulo_base'] = datos.get('titulo_base') or None
-    datos['anio_egreso_otros'] = datos.get('anio_egreso_otros') or None
-    datos['piso'] = datos.get('piso') if datos.get('piso') != 'NULL' else None
+        # Ajustar campos que pueden no estar presentes
+        datos['lugar_nacimiento'] = datos.get('lugar_nacimiento') or None
+        datos['telefono_alt'] = datos.get('telefono_alt') or None
+        datos['telefono_alt_propietario'] = datos.get('telefono_alt_propietario') or None
+        datos['titulo_base'] = datos.get('titulo_base') or None
+        datos['anio_egreso_otros'] = datos.get('anio_egreso_otros') or None
+        datos['anio_egreso_otros_2'] = datos.get('anio_egreso_otros_2') or None
+        datos['anio_egreso_otros_3'] = datos.get('anio_egreso_otros_3') or None
+        datos['piso'] = datos.get('piso') if datos.get('piso') != 'NULL' else None
+        datos['email_alternativo'] = datos.get('email_alternativo') or None
+        datos['email_alternativo_2'] = datos.get('email_alternativo_2') or None
+        datos['observaciones'] = datos.get('observaciones') or None
+        datos['otros_estudios_2'] = datos.get('otros_estudios_2') or None
+        datos['otros_estudios_3'] = datos.get('otros_estudios_3') or None
 
-    # Ajustar los campos relacionados con el trabajo
-    trabaja = datos.get('trabaja')
-    actividad = datos.get('actividad', '') if trabaja == 'si' else None
-    horario_habitual = datos.get('horario_habitual', '') if trabaja == 'si' else None
-    obra_social = datos.get('obra_social', '') if trabaja == 'si' else None
+        # Ajustar los campos relacionados con el trabajo
+        trabaja = datos.get('trabaja')
+        actividad = datos.get('actividad', '') if trabaja == 'si' else None
+        horario_habitual = datos.get('horario_habitual', '') if trabaja == 'si' else None
+        obra_social = datos.get('obra_social', '') if trabaja == 'si' else None
 
-    # Usar los IDs originales para la inserción en inscripciones_carreras
-    id_carrera = datos.get('id_carrera_original')
-    id_turno = datos.get('id_turno_original')
-    id_pais = datos.get('id_pais_original')
-    id_provincia = datos.get('id_provincia_original')
-    localidad = datos.get('localidad')  # Ahora es un string
-    id_institucion = datos.get('id_instituto_original')
-    id_sexo = datos.get('id_sexo_original')
-    id_estado_civil = datos.get('id_estado_civil_original')
+        # Usar los IDs originales para la inserción en inscripciones_carreras
+        # Si vienen con el sufijo _original (desde pre_inscripcion), usarlos
+        # Si no, usar los valores directos (desde inscribite)
+        id_carrera = datos.get('id_carrera_original') or datos.get('carrera')
+        id_turno = datos.get('id_turno_original') or datos.get('turno')
+        id_pais = datos.get('id_pais_original') or datos.get('id_pais')
+        id_provincia = datos.get('id_provincia_original') or datos.get('id_provincia')
+        localidad = datos.get('localidad')  # Ahora es un string
+        id_institucion = datos.get('id_instituto_original') or datos.get('id_institucion')
+        id_sexo = datos.get('id_sexo_original') or datos.get('id_sexo')
+        id_estado_civil = datos.get('id_estado_civil_original') or datos.get('id_estado_civil')
 
-    # Insertar el usuario en la tabla pre_inscripciones con id_carrera
-    query_usuario = """
-        INSERT INTO pre_inscripciones (
-            dni, nombre, apellido, id_sexo, fecha_nacimiento, lugar_nacimiento, id_estado_civil,
-            cantidad_hijos, familiares_a_cargo, domicilio, piso, localidad, id_pais,
-            id_provincia, codigo_postal, telefono, telefono_alt, telefono_alt_propietario, email,
-            titulo_base, anio_egreso, id_institucion, id_carrera, otros_estudios, anio_egreso_otros,
-            trabaja, actividad, horario_habitual, obra_social
-        ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-    """
-    ejecutar_sql(query_usuario, (
-        datos['dni'], datos['nombre'], datos['apellido'], id_sexo,
-        datos['fecha_nacimiento'], datos['lugar_nacimiento'], id_estado_civil,
-        datos['cantidad_hijos'], datos['familiares_a_cargo'], datos['domicilio'],
-        datos['piso'], localidad, id_pais,
-        id_provincia, datos['codigo_postal'], datos['telefono'],
-        datos['telefono_alt'], datos['telefono_alt_propietario'], datos['email'],
-        datos['titulo_base'], datos['anio_egreso'], id_institucion, id_carrera,
-        datos['otros_estudios'], datos['anio_egreso_otros'], trabaja,
-        actividad, horario_habitual, obra_social
-    ))
+        # DEBUG: Imprimir valores clave para diagnóstico
+        print("=" * 60)
+        print("🔍 VALORES A INSERTAR:")
+        print(f"   DNI: {datos.get('dni')}")
+        print(f"   Nombre: {datos.get('nombre')}")
+        print(f"   Apellido: {datos.get('apellido')}")
+        print(f"   id_sexo: {id_sexo}")
+        print(f"   id_estado_civil: {id_estado_civil}")
+        print(f"   id_pais: {id_pais}")
+        print(f"   id_provincia: {id_provincia}")
+        print(f"   id_institucion: {id_institucion}")
+        print(f"   id_carrera: {id_carrera}")
+        print(f"   localidad: {localidad}")
+        print(f"   piso: {datos.get('piso')}")
+        print(f"   telefono_alt: {datos.get('telefono_alt')}")
+        print(f"   telefono_alt_propietario: {datos.get('telefono_alt_propietario')}")
+        print("=" * 60)
 
-    # Recuperar id_usuario usando el DNI
-    query_select_id = "SELECT id_usuario FROM pre_inscripciones WHERE dni = %s"
-    id_usuario = ejecutar_sql(query_select_id, (datos['dni'],))[0][0]
-    print (id_usuario)
-    # Insertar en inscripciones_carreras con el id_usuario obtenido
-    query_inscripcion = """
-        INSERT INTO inscripciones_carreras (
-            id_carrera, id_usuario, fecha_inscripcion, turno, estado_alumno, activo
-        ) VALUES (%s, %s, NOW(), %s, 'pre_inscripto', 1)
-    """
-    ejecutar_sql(query_inscripcion, (id_carrera, id_usuario, id_turno))
-    
-    # Limpiar la sesión
-    session.pop('datos_personales', None)
-    session.pop('datos_completos', None)
-    
-    # Mensaje de éxito
-    flash(f'Pre-inscripción guardada exitosamente. DNI: {datos["dni"]}', 'success')
-    
-    # Redirigir al home una vez completada la inscripción
-    return redirect(url_for('home'))
+        # Verificar si los campos adicionales existen en la tabla
+        # Intentar inserción con todos los campos, si falla, usar campos básicos
+        insert_exitoso = False
+        error_insert = None
+        
+        try:
+            # Insertar el usuario en la tabla pre_inscripciones con TODOS los campos
+            query_usuario = """
+                INSERT INTO pre_inscripciones (
+                    dni, nombre, apellido, id_sexo, fecha_nacimiento, lugar_nacimiento, id_estado_civil,
+                    cantidad_hijos, familiares_a_cargo, domicilio, piso, localidad, id_pais,
+                    id_provincia, codigo_postal, telefono, telefono_alt, telefono_alt_propietario, email, email_alternativo, email_alternativo_2,
+                    titulo_base, anio_egreso, id_institucion, id_carrera, observaciones, otros_estudios, anio_egreso_otros,
+                    otros_estudios_2, anio_egreso_otros_2, otros_estudios_3, anio_egreso_otros_3,
+                    trabaja, actividad, horario_habitual, obra_social
+                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            """
+            ejecutar_sql(query_usuario, (
+                datos['dni'], datos['nombre'], datos['apellido'], id_sexo,
+                datos['fecha_nacimiento'], datos['lugar_nacimiento'], id_estado_civil,
+                datos['cantidad_hijos'], datos['familiares_a_cargo'], datos['domicilio'],
+                datos['piso'], localidad, id_pais,
+                id_provincia, datos['codigo_postal'], datos['telefono'],
+                datos['telefono_alt'], datos['telefono_alt_propietario'], datos['email'], datos['email_alternativo'], datos['email_alternativo_2'],
+                datos['titulo_base'], datos['anio_egreso'], id_institucion, id_carrera, datos['observaciones'],
+                datos['otros_estudios'], datos['anio_egreso_otros'], datos['otros_estudios_2'], datos['anio_egreso_otros_2'],
+                datos['otros_estudios_3'], datos['anio_egreso_otros_3'], trabaja,
+                actividad, horario_habitual, obra_social
+            ))
+            insert_exitoso = True
+            print("✅ INSERT completo exitoso (con todos los campos)")
+            
+        except Exception as insert_error:
+            # Si falla, probablemente faltan columnas - usar solo campos básicos
+            error_insert = str(insert_error)
+            print(f"❌ Error con INSERT completo: {error_insert}")
+            print("🔄 Intentando con campos básicos de la tabla...")
+            
+            try:
+                query_usuario_basico = """
+                    INSERT INTO pre_inscripciones (
+                        dni, nombre, apellido, id_sexo, fecha_nacimiento, lugar_nacimiento, id_estado_civil,
+                        cantidad_hijos, familiares_a_cargo, domicilio, piso, localidad, id_pais,
+                        id_provincia, codigo_postal, telefono, telefono_alt, telefono_alt_propietario, email,
+                        titulo_base, anio_egreso, id_institucion, otros_estudios, anio_egreso_otros,
+                        trabaja, actividad, horario_habitual, obra_social
+                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                """
+                ejecutar_sql(query_usuario_basico, (
+                    datos['dni'], datos['nombre'], datos['apellido'], id_sexo,
+                    datos['fecha_nacimiento'], datos['lugar_nacimiento'], id_estado_civil,
+                    datos['cantidad_hijos'], datos['familiares_a_cargo'], datos['domicilio'],
+                    datos['piso'], localidad, id_pais,
+                    id_provincia, datos['codigo_postal'], datos['telefono'],
+                    datos['telefono_alt'], datos['telefono_alt_propietario'], datos['email'],
+                    datos['titulo_base'], datos['anio_egreso'], id_institucion, 
+                    datos['otros_estudios'], datos['anio_egreso_otros'],
+                    trabaja, actividad, horario_habitual, obra_social
+                ))
+                insert_exitoso = True
+                print("✅ INSERT básico exitoso")
+                print("⚠️  ADVERTENCIA: Se guardaron solo los campos básicos. Ejecuta el script SQL de actualización.")
+                
+            except Exception as insert_error_basico:
+                # Si ambos fallan, mostrar error detallado
+                print(f"❌ Error CRÍTICO - Ambos INSERT fallaron:")
+                print(f"   Error INSERT completo: {error_insert}")
+                print(f"   Error INSERT básico: {str(insert_error_basico)}")
+                raise Exception(f"No se pudo insertar en pre_inscripciones. Error completo: {error_insert}. Error básico: {str(insert_error_basico)}")
+
+        
+        # Recuperar id_usuario usando el DNI solo si el INSERT fue exitoso
+        if insert_exitoso:
+            query_select_id = "SELECT id_usuario FROM pre_inscripciones WHERE dni = %s ORDER BY id_usuario DESC LIMIT 1"
+            resultado = ejecutar_sql(query_select_id, (datos['dni'],))
+            
+            if not resultado or len(resultado) == 0:
+                raise Exception(f"No se pudo recuperar el id_usuario para DNI: {datos['dni']}. Verifica que el INSERT se haya ejecutado correctamente.")
+            
+            id_usuario = resultado[0][0]
+            print(f"✅ ID Usuario recuperado: {id_usuario}")
+            
+            # Insertar en inscripciones_carreras con el id_usuario obtenido (solo si existe id_carrera)
+            if id_carrera:
+                query_inscripcion = """
+                    INSERT INTO inscripciones_carreras (
+                        id_carrera, id_usuario, fecha_inscripcion, turno, estado_alumno, activo
+                    ) VALUES (%s, %s, NOW(), %s, 'pre_inscripto', 1)
+                """
+                ejecutar_sql(query_inscripcion, (id_carrera, id_usuario, id_turno))
+                print(f"✅ Inscripción en carrera guardada correctamente")
+            else:
+                print("⚠️  ADVERTENCIA: No se guardó inscripción en carrera porque falta id_carrera")
+        else:
+            raise Exception("No se pudo realizar ningún INSERT en la base de datos")
+        
+        # Limpiar la sesión
+        session.pop('datos_personales', None)
+        session.pop('datos_completos', None)
+        
+        # Mensaje de éxito
+        flash(f'Pre-inscripción guardada exitosamente. DNI: {datos["dni"]}', 'success')
+        
+        # Redirigir al home una vez completada la inscripción
+        return jsonify({'success': True, 'dni': datos['dni']}), 200
+        
+    except Exception as e:
+        print(f"Error al guardar pre-inscripción: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 
 
@@ -1499,11 +1603,22 @@ def inscribite_2():
     query_provincias = "SELECT id_provincia, id_pais, nombre FROM provincias"
     provincias = ejecutar_sql(query_provincias)
 
+    # Obtener año actual
+    from datetime import datetime
+    anio_actual = datetime.now().year
+
+    # Consulta para obtener las carreras
+    query_carreras = """
+        SELECT id_carrera, nombre FROM lista_carreras
+    """
+    lista_carreras = ejecutar_sql(query_carreras)
 
     return render_template(
         'inscribite_2.html',
         id_pais_estudio=id_pais_estudio,
         provincias=provincias,
+        anio_actual=anio_actual,
+        lista_carreras=lista_carreras,
     )
 
 
@@ -1560,7 +1675,7 @@ def inscribite_3():
     datos_completos['id_turno_original'] = id_turno_original
     datos_completos['id_instituto_original'] = id_instituto_original
     datos_completos['id_sexo_original'] = id_sexo_original
-    datos_completos['id_estado_civil_original'] = id_sexo_original
+    datos_completos['id_estado_civil_original'] = id_estado_civil_original
 
     # Reemplazar los IDs por sus nombres para mostrar en la vista
     datos_completos['id_pais'] = pais_nombre
@@ -1571,6 +1686,9 @@ def inscribite_3():
     datos_completos['id_institucion'] = instituto_nombre
     datos_completos['id_sexo'] = sexo_nombre
     datos_completos['id_estado_civil'] = estado_civil_nombre
+    
+    # Actualizar la sesión con los datos completos incluyendo los _original
+    session['datos_completos'] = datos_completos
 
     return render_template('inscribite_3.html', **datos_completos)
 

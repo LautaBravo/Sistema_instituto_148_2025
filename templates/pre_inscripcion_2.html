@@ -15,11 +15,10 @@
         const anio_actual = {{ anio_actual }};
 
         function toggleLaborFields() {
-            const trabajaSi = document.getElementById('trabaja_si');
-            const trabajaNo = document.getElementById('trabaja_no');
+            const trabajaSelect = document.getElementById('trabaja');
             const laborFields = document.querySelectorAll('.labor-field');
 
-            if (trabajaSi.checked) {
+            if (trabajaSelect.value === 'si') {
                 laborFields.forEach(field => field.disabled = false);
             } else {
                 laborFields.forEach(field => field.disabled = true);
@@ -35,6 +34,11 @@
         function validar_numeros(input) {
             // Solo permite números, elimina cualquier otro caracter
             input.value = input.value.replace(/[^0-9]/g, '');
+        }
+
+        function validarTextoSinNumeros(input) {
+            // Solo permite letras, espacios, tildes, ñ y guiones
+            input.value = input.value.replace(/[^a-záéíóúñA-ZÁÉÍÓÚÑ\s\-]/g, '');
         }
 
         function validarAnioEgreso(input) {
@@ -63,18 +67,6 @@
             }
         }
     </script>
-    <style>
-            html{
-                margin-left: 15%;
-            }
-            html, body{
-                height: 100%;
-                display: flex;
-                justify-content: center; /* Centra horizontalmente */
-                align-content: center; /* Centra verticalmente */
-            }
-                        
-    </style>
 </head>
 <body>
     <div class="container">
@@ -83,15 +75,39 @@
 
 
             <div class="form-container">
+                <!-- Información del usuario que está cargando datos -->
+                <div class="alert alert-info" role="alert">
+                    <h5><i class="fas fa-user"></i> Datos del Estudiante</h5>
+                    <div class="row">
+                        <div class="col-md-4">
+                            <strong>Nombre:</strong> {{ session.get('datos_personales', {}).get('nombre', '') }} {{ session.get('datos_personales', {}).get('apellido', '') }}
+                        </div>
+                        <div class="col-md-4">
+                            <strong>DNI:</strong> {{ session.get('datos_personales', {}).get('dni', '') }}
+                        </div>
+                        <div class="col-md-4">
+                            <strong>Carrera:</strong> 
+                            {% for carrera in lista_carreras %}
+                                {% if carrera[0]|string == session.get('datos_personales', {}).get('carrera', '') %}
+                                    {{ carrera[1] }}
+                                {% endif %}
+                            {% endfor %}
+                        </div>
+                    </div>
+                </div>
+
                 <!-- Sección de Estudios Cursados -->
                     <h4 class="text-primary text-center mt-3">Estudios Cursados</h4>
                     <form method="POST" action="/pre_inscripcion_3">
                     <div class="form-row">
-                        <div class="col col-md-4 form-group">
+                        <div class="col-md-6 form-group">
                             <label for="titulo_base">Título Secundario:</label>
-                            <input class="form-control form-control-sm" type="text" id="titulo_base" name="titulo_base" required>
+                            <input class="form-control form-control-sm" type="text" id="titulo_base" name="titulo_base" 
+                                   oninput="validarTextoSinNumeros(this)" 
+                                   pattern="[a-záéíóúñA-ZÁÉÍÓÚÑ\s\-]+" 
+                                   title="Solo se permiten letras, espacios y guiones" required>
                         </div>
-                        <div class="col col-md-3 form-group">
+                        <div class="col-md-3 form-group">
                             <label for="anio_egreso">Año de Egreso:</label>
                             <input class="form-control form-control-sm" type="number" id="anio_egreso" name="anio_egreso" 
                                    min="1900" max="{{ anio_actual }}" 
@@ -101,7 +117,7 @@
                             </small>
                         </div>
                         <!-- Selección de provincia -->
-                        <div class="col col-md-4 form-group">
+                        <div class="col-md-3 form-group">
                             <label for="provincia_estudio_otros">Provincia:</label>
                             <select class="form-control form-control-sm" id="provincia_estudio_otros" name="provincia_estudio_otros">
                                 <option value="">Seleccione una provincia</option>
@@ -110,12 +126,18 @@
                                 {% endfor %}
                             </select>
                         </div>
-                        <div class="col col-md-4 form-group">
-                            <label for="otros_estudios">Otros Estudios:</label>
-                            <input class="form-control form-control-sm" type="text" id="otros_estudios" name="otros_estudios">
+                    </div>
+
+                    <!-- Otros Estudios 1 -->
+                    <h5 class="text-secondary mt-3">Otros Estudios (opcional)</h5>
+                    <div class="form-row">
+                        <div class="col-md-6 form-group">
+                            <label for="otros_estudios">Título/Carrera:</label>
+                            <input class="form-control form-control-sm" type="text" id="otros_estudios" name="otros_estudios" 
+                                   oninput="validarTextoSinNumeros(this)" placeholder="Ej: Técnico en...">
                         </div>
-                        <div class="col col-md-4 form-group">
-                            <label for="anio_egreso_otros">Año de Egreso (Otros Estudios):</label>
+                        <div class="col-md-3 form-group">
+                            <label for="anio_egreso_otros">Año de Egreso:</label>
                             <input class="form-control form-control-sm" type="number" id="anio_egreso_otros" name="anio_egreso_otros" 
                                    min="1900" max="{{ anio_actual }}" 
                                    oninput="validarAnioEgresoOtros(this)">
@@ -123,29 +145,58 @@
                                 Ingrese un número correcto
                             </small>
                         </div>
+                        <div class="col-md-3"></div>
+                    </div>
+
+                    <!-- Otros Estudios 2 -->
+                    <div class="form-row">
+                        <div class="col-md-6 form-group">
+                            <label for="otros_estudios_2">Título/Carrera 2:</label>
+                            <input class="form-control form-control-sm" type="text" id="otros_estudios_2" name="otros_estudios_2" 
+                                   oninput="validarTextoSinNumeros(this)" placeholder="Ej: Licenciatura en...">
+                        </div>
+                        <div class="col-md-3 form-group">
+                            <label for="anio_egreso_otros_2">Año de Egreso 2:</label>
+                            <input class="form-control form-control-sm" type="number" id="anio_egreso_otros_2" name="anio_egreso_otros_2" 
+                                   min="1900" max="{{ anio_actual }}">
+                        </div>
+                        <div class="col-md-3"></div>
+                    </div>
+
+                    <!-- Otros Estudios 3 -->
+                    <div class="form-row">
+                        <div class="col-md-6 form-group">
+                            <label for="otros_estudios_3">Título/Carrera 3:</label>
+                            <input class="form-control form-control-sm" type="text" id="otros_estudios_3" name="otros_estudios_3" 
+                                   oninput="validarTextoSinNumeros(this)" placeholder="Ej: Posgrado en...">
+                        </div>
+                        <div class="col-md-3 form-group">
+                            <label for="anio_egreso_otros_3">Año de Egreso 3:</label>
+                            <input class="form-control form-control-sm" type="number" id="anio_egreso_otros_3" name="anio_egreso_otros_3" 
+                                   min="1900" max="{{ anio_actual }}">
+                        </div>
+                        <div class="col-md-3"></div>
                     </div>
                 <!-- Sección de Datos Laborales -->
             <div class="form-container">
                     <h4 class="text-primary text-center mt-3">Datos Laborales</h4>
                     <div class="form-row">
-                        <div class="col col-md-4 mt-3">
-                            <label style="font-size: 12px;">¿Trabaja?</label>
-                            <div class="form-check form-check-inline">
-                                <input class="form-check-input ml-2" type="radio" id="trabaja_si" name="trabaja" value="si" onclick="toggleLaborFields()">
-                                <label class="form-check-label" for="trabaja_si">Sí</label>
-                                <input class="form-check-input ml-2" type="radio" id="trabaja_no" name="trabaja" value="no" onclick="toggleLaborFields()" checked>
-                                <label class="form-check-label" for="trabaja_no">No</label>
-                            </div>
+                        <div class="col-md-3 form-group">
+                            <label for="trabaja">¿Trabaja?</label>
+                            <select class="form-control form-control-sm" id="trabaja" name="trabaja" onchange="toggleLaborFields()">
+                                <option value="no" selected>No</option>
+                                <option value="si">Sí</option>
+                            </select>
                         </div>
-                        <div class="col col-md-4 form-group">
+                        <div class="col col-md-3 form-group">
                             <label for="actividad">Actividad:</label>
                             <input class="labor-field form-control form-control-sm" type="text" id="actividad" name="actividad" disabled>
                         </div>
-                        <div class="col col-md-4 form-group">
+                        <div class="col col-md-3 form-group">
                             <label for="horario_habitual">Horario Habitual:</label>
                             <input class="labor-field form-control form-control-sm" type="text" id="horario_habitual" name="horario_habitual" disabled>
                         </div>
-                        <div class="col col-md-4 form-group">
+                        <div class="col col-md-3 form-group">
                             <label for="obra_social">Obra Social:</label>
                             <input class="labor-field form-control form-control-sm" type="text" id="obra_social" name="obra_social" disabled>
                         </div>
